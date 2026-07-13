@@ -1,0 +1,23 @@
+# Run configuration. Model versions are pinned here so a benchmark is
+# reproducible and a re-run with a newer version is a one-line diff.
+#
+# `run_id` seeds the blind shuffle (keep it stable to reproduce a run).
+run_id: 2026-07-blind-01
+
+# Which providers to include. Comment a line out to skip that model.
+providers:
+  tripo:     {model_version: "v2.5-20250123", texture: true, pbr: true}
+  meshy:     {ai_model: "meshy-6", target_polycount: 30000}
+  rodin:     {tier: "Regular", mesh_mode: "Quad", quality: "high"}
+  hunyuan3d: {model_id: "fal-ai/hunyuan3d/v2"}
+  trellis:   {model_id: "fal-ai/trellis", mesh_simplify: 0.95}
+
+# Where generated meshes, metrics, and reports are written.
+out_dir: results
+
+# Case set.
+cases_file: cases/cases.yaml
+
+# Polling budget per case (seconds). Big characters can take minutes.
+timeout_s: 900
+poll_interval_s: 6

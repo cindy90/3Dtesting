@@ -1,0 +1,62 @@
+# Blind-test input set — IDENTICAL across every model (protocol requirement).
+#
+# 40 text-to-3D cases, balanced so the production dimensions are all exercised:
+#   character   -> riggability + symmetry are decisive (14)
+#   prop        -> watertight small objects (9)
+#   hardsurface -> topology on mechanical/vehicle/weapon forms (9)
+#   organic     -> watertight blobby forms that tempt splat-style output (8)
+#
+# expect_symmetry gates the (expensive) bilateral-symmetry probe; set only for
+# forms a rigger would expect to be left/right symmetric.
+# Image-to-3D cases can be added with mode: image + image_path once you have a
+# shared reference-image set; text keeps the input trivially shareable.
+
+version: 1
+cases:
+  # ---------------- characters (14) ----------------
+  - {id: c01, category: character, expect_symmetry: true, prompt: "a stylized cartoon knight in full plate armor, standing T-pose, game-ready character"}
+  - {id: c02, category: character, expect_symmetry: true, prompt: "a humanoid robot android with segmented limbs, standing straight, arms at sides"}
+  - {id: c03, category: character, expect_symmetry: true, prompt: "a chibi female mage with a pointed hat and staff, T-pose"}
+  - {id: c04, category: character, expect_symmetry: true, prompt: "a bipedal cartoon fox character wearing a jacket, standing, arms spread"}
+  - {id: c05, category: character, expect_symmetry: true, prompt: "a muscular orc warrior, bare chest, standing T-pose, low-poly game character"}
+  - {id: c06, category: character, expect_symmetry: true, prompt: "a cute round penguin character with tiny wings, front facing, symmetric"}
+  - {id: c07, category: character, expect_symmetry: true, prompt: "a sci-fi astronaut in a spacesuit, helmet on, standing straight"}
+  - {id: c08, category: character, expect_symmetry: true, prompt: "a fantasy elf archer, slim, standing T-pose, wearing a hooded cloak"}
+  - {id: c09, category: character, expect_symmetry: true, prompt: "a cartoon zombie in torn clothes, arms outstretched forward, standing"}
+  - {id: c10, category: character, expect_symmetry: true, prompt: "a small dragon standing on two legs with folded wings, symmetric, front facing"}
+  - {id: c11, category: character, expect_symmetry: true, prompt: "a wooden artist mannequin figure in neutral standing pose"}
+  - {id: c12, category: character, expect_symmetry: true, prompt: "a superhero in a tight suit and cape, standing heroic T-pose"}
+  - {id: c13, category: character, expect_symmetry: true, prompt: "a cartoon bee character with four arms folded, symmetric, standing"}
+  - {id: c14, category: character, expect_symmetry: true, prompt: "a knight's suit of empty armor standing upright, T-pose, hollow"}
+
+  # ---------------- props (9) ----------------
+  - {id: p01, category: prop, prompt: "a medieval treasure chest, closed lid, ornate iron bands"}
+  - {id: p02, category: prop, prompt: "a ceramic teapot with a curved spout and handle"}
+  - {id: p03, category: prop, prompt: "a stack of three worn leather-bound books"}
+  - {id: p04, category: prop, prompt: "a potted succulent plant in a hexagonal concrete pot"}
+  - {id: p05, category: prop, prompt: "a vintage brass desk lamp with a bell-shaped shade"}
+  - {id: p06, category: prop, prompt: "a wooden barrel with metal hoops"}
+  - {id: p07, category: prop, prompt: "a retro rotary telephone with a coiled cord"}
+  - {id: p08, category: prop, prompt: "a hamburger with sesame bun, lettuce, and cheese"}
+  - {id: p09, category: prop, prompt: "an ornate golden goblet encrusted with gems"}
+
+  # ---------------- hard-surface (9) ----------------
+  - {id: h01, category: hardsurface, expect_symmetry: true, prompt: "a sci-fi laser rifle, side detail, hard-surface game asset"}
+  - {id: h02, category: hardsurface, expect_symmetry: true, prompt: "a low-poly muscle car, clean body panels"}
+  - {id: h03, category: hardsurface, expect_symmetry: true, prompt: "a quadcopter drone with four rotors and a camera gimbal"}
+  - {id: h04, category: hardsurface, prompt: "a mechanical keyboard with visible keycaps"}
+  - {id: h05, category: hardsurface, expect_symmetry: true, prompt: "a medieval steel longsword with a crossguard"}
+  - {id: h06, category: hardsurface, expect_symmetry: true, prompt: "a sci-fi hover bike, sleek, single seat"}
+  - {id: h07, category: hardsurface, prompt: "a desktop CNC 3D printer, boxy frame"}
+  - {id: h08, category: hardsurface, expect_symmetry: true, prompt: "a fantasy battle axe with a double-bladed head"}
+  - {id: h09, category: hardsurface, prompt: "a wall-mounted analog clock with roman numerals"}
+
+  # ---------------- organic (8) ----------------
+  - {id: o01, category: organic, prompt: "a realistic red apple with a short stem"}
+  - {id: o02, category: organic, prompt: "a weathered granite boulder, irregular surface"}
+  - {id: o03, category: organic, prompt: "a coral reef fragment, branching structure"}
+  - {id: o04, category: organic, prompt: "a curled-up sleeping cat"}
+  - {id: o05, category: organic, prompt: "a twisted bonsai tree in a shallow tray"}
+  - {id: o06, category: organic, prompt: "a human hand in a relaxed open pose"}
+  - {id: o07, category: organic, prompt: "a pumpkin with deep ribs and a curled stem"}
+  - {id: o08, category: organic, prompt: "a conch seashell with a spiral opening"}

@@ -1,0 +1,13 @@
+# Secrets
+.env
+
+# Generated meshes, metrics, reports (regenerate with the harness)
+results/
+!results/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/

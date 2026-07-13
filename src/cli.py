@@ -1,0 +1,137 @@
+"""Command-line entry point tying the harness together.
+
+Subcommands (run in order):
+
+  generate  submit every case to every configured provider, download meshes,
+            write results/generation.json
+  analyze   run the objective geometry metrics + scoring on every mesh,
+            write results/metrics.json and results/scores.json
+  blind     build the anonymised human-spot-check set + blank scoresheet
+  report    median-aggregate per model and emit results/report.md
+
+Typical:
+    python -m src.cli generate
+    python -m src.cli analyze
+    python -m src.cli report
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any
+
+from .config import load_config, load_cases, stable_seed, RunConfig
+from .providers import build_provider, Case
+from .analysis.geometry import analyze_mesh
+from .analysis.scoring import score_mesh, aggregate_model
+from .eval.blind import build_blind_set
+
+
+def _write_json(path: str, obj: Any) -> None:
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w") as fh:
+        json.dump(obj, fh, indent=2)
+
+
+def cmd_generate(cfg: RunConfig, cases: list[Case], only: list[str] | None) -> None:
+    results: list[dict[str, Any]] = []
+    provider_keys = [k for k in cfg.providers if not only or k in only]
+    print(f"generating {len(cases)} cases x {len(provider_keys)} providers")
+
+    def _one(pkey: str, case: Case) -> dict[str, Any]:
+        prov = build_provider(pkey, cfg.providers[pkey])
+        prov.timeout_s = cfg.timeout_s
+        prov.poll_interval_s = cfg.poll_interval_s
+        res = prov.run(case, cfg.out_dir)
+        status = "ok" if res.ok else f"FAIL({res.error})"
+        print(f"  [{pkey}] {case.id}: {status}")
+        return {
+            "provider": res.provider, "case_id": res.case_id, "ok": res.ok,
+            "mesh_path": res.mesh_path, "task_id": res.task_id,
+            "latency_s": res.latency_s, "error": res.error,
+        }
+
+    # modest parallelism: distinct providers run concurrently, cases serial
+    # within a provider is unnecessary — the APIs are async — so fan out all.
+    jobs = [(p, c) for p in provider_keys for c in cases]
+    with ThreadPoolExecutor(max_workers=min(8, max(1, len(jobs)))) as ex:
+        futs = {ex.submit(_one, p, c): (p, c.id) for p, c in jobs}
+        for fut in as_completed(futs):
+            results.append(fut.result())
+
+    _write_json(os.path.join(cfg.out_dir, "generation.json"), results)
+    ok = sum(1 for r in results if r["ok"])
+    print(f"done: {ok}/{len(results)} meshes generated -> "
+          f"{cfg.out_dir}/generation.json")
+
+
+def cmd_analyze(cfg: RunConfig, cases: list[Case]) -> None:
+    gen_path = os.path.join(cfg.out_dir, "generation.json")
+    if not os.path.exists(gen_path):
+        raise SystemExit("run `generate` first (no generation.json)")
+    with open(gen_path) as fh:
+        gen = json.load(fh)
+    case_by_id = {c.id: c for c in cases}
+
+    metrics_out: list[dict[str, Any]] = []
+    scores_out: list[dict[str, Any]] = []
+    for r in gen:
+        if not r.get("ok") or not r.get("mesh_path") or not os.path.exists(r["mesh_path"]):
+            metrics_out.append({"provider": r["provider"], "case_id": r["case_id"],
+                                "ok": False, "error": r.get("error", "no mesh")})
+            continue
+        case = case_by_id.get(r["case_id"])
+        expect_sym = bool(case and case.expect_symmetry)
+        m = analyze_mesh(r["mesh_path"], expect_symmetry=expect_sym).to_dict()
+        m.update({"provider": r["provider"], "case_id": r["case_id"]})
+        metrics_out.append(m)
+        s = score_mesh(m, expect_symmetry=expect_sym)
+        s.update({"provider": r["provider"], "case_id": r["case_id"]})
+        scores_out.append(s)
+        print(f"  [{r['provider']}] {r['case_id']}: production={s['production_score']}")
+
+    _write_json(os.path.join(cfg.out_dir, "metrics.json"), metrics_out)
+    _write_json(os.path.join(cfg.out_dir, "scores.json"), scores_out)
+    print(f"analyzed {len(scores_out)} meshes -> {cfg.out_dir}/scores.json")
+
+
+def cmd_blind(cfg: RunConfig) -> None:
+    gen_path = os.path.join(cfg.out_dir, "generation.json")
+    with open(gen_path) as fh:
+        gen = json.load(fh)
+    manifest = build_blind_set(gen, cfg.out_dir, seed=stable_seed(cfg.run_id))
+    print(f"blind set: {len(manifest['items'])} meshes anonymised -> "
+          f"{cfg.out_dir}/blind/  (score {cfg.out_dir}/blind_scoresheet.csv, "
+          f"keep blind_manifest.json sealed)")
+
+
+def cmd_report(cfg: RunConfig) -> None:
+    from .report import build_report
+    build_report(cfg)
+
+
+def main(argv: list[str] | None = None) -> None:
+    ap = argparse.ArgumentParser(prog="blind3d")
+    ap.add_argument("command", choices=["generate", "analyze", "blind", "report", "all"])
+    ap.add_argument("--config", default="config.yaml")
+    ap.add_argument("--only", nargs="*", help="limit generate to these providers")
+    args = ap.parse_args(argv)
+
+    cfg = load_config(args.config)
+    cases = load_cases(cfg.cases_file)
+
+    if args.command in ("generate", "all"):
+        cmd_generate(cfg, cases, args.only)
+    if args.command in ("analyze", "all"):
+        cmd_analyze(cfg, cases)
+    if args.command in ("blind", "all"):
+        cmd_blind(cfg)
+    if args.command in ("report", "all"):
+        cmd_report(cfg)
+
+
+if __name__ == "__main__":
+    main()
