@@ -19,12 +19,16 @@ class RunConfig:
     cases_file: str
     timeout_s: float = 900.0
     poll_interval_s: float = 6.0
+    mode: str = "text"                       # default input mode: text | image
+    reference_images: dict[str, Any] = field(default_factory=dict)
+    refs_dir: str = "cases/refs"
     extra: dict[str, Any] = field(default_factory=dict)
 
 
 def load_config(path: str = "config.yaml") -> RunConfig:
     with open(path) as fh:
         raw = yaml.safe_load(fh)
+    ref = raw.get("reference_images", {}) or {}
     return RunConfig(
         run_id=str(raw.get("run_id", "run")),
         providers=raw.get("providers", {}) or {},
@@ -32,6 +36,9 @@ def load_config(path: str = "config.yaml") -> RunConfig:
         cases_file=raw.get("cases_file", "cases/cases.yaml"),
         timeout_s=float(raw.get("timeout_s", 900)),
         poll_interval_s=float(raw.get("poll_interval_s", 6)),
+        mode=str(raw.get("mode", "text")),
+        reference_images=ref,
+        refs_dir=str(ref.get("dir", "cases/refs")),
     )
 
 

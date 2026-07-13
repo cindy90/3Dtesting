@@ -9,8 +9,17 @@ visual preference. The four procedural rules are kept verbatim; the fifth
 
 1. **Identical input set.** Every model receives the exact same cases from
    `cases/cases.yaml` — same prompts, same modes, same order. No per-model
-   prompt tuning. (40 text cases ship by default; image cases can be added once
-   you have a shared reference-image set.)
+   prompt tuning. (40 text cases ship by default.)
+
+   **Mixed cohorts (text-native + image-to-3D).** Most open-source generators
+   (SF3D, TripoSR, InstantMesh, TRELLIS, Hunyuan3D) are *image-to-3D*, while the
+   commercial ones also take text. To compare them fairly the harness supports
+   an **image mode**: it generates ONE shared reference image per case from a
+   fixed text-to-image model (`refimg` → FLUX on fal) and feeds that identical
+   image to every model (Tripo included, via its image endpoint). This upholds
+   the identical-input rule at the *pixel* level — a stronger guarantee than
+   identical text, because text-to-image variance is removed from the compare.
+   Run `python -m src.cli refimg` once, then `generate --mode image`.
 
 2. **Official APIs, pinned versions.** Each model is called through its
    first-party (or, for open-weights models, the canonical hosted) API, at a

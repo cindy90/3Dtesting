@@ -37,14 +37,27 @@ python -m src.selftest
 cp .env.example .env && $EDITOR .env
 set -a && source .env && set +a
 
-# 3. run the sweep (pin model versions in config.yaml first)
+# 3a. TEXT mode — text-native models only (Tripo, Meshy, Hunyuan text …)
 python -m src.cli generate     # submit every case to every model, download meshes
 python -m src.cli analyze      # objective geometry metrics + production scores
 python -m src.cli blind        # anonymised human spot-check set + scoresheet
 python -m src.cli report       # median-aggregated results/report.md
+
+# 3b. IMAGE mode — fair mixed cohort incl. open-source image-to-3D models
+python -m src.cli refimg                      # one shared reference image / case (FLUX on fal)
+python -m src.cli generate --mode image       # every model consumes the SAME image
+python -m src.cli analyze && python -m src.cli report
 ```
 
-`python -m src.cli generate --only tripo meshy` limits a run to some providers.
+`--only tripo hunyuan3d trellis` limits a run to some providers; `--max-cases N`
+caps cost for a smoke test.
+
+### Open-source cohort (image mode)
+
+Open-source generators are image-to-3D and need a GPU, so they run through
+fal.ai's hosted endpoints (one `FAL_KEY`). Image mode generates a shared
+reference image per case and feeds the identical image to every model, so the
+comparison is fair at the pixel level. See [`PROTOCOL.md`](PROTOCOL.md).
 
 ## What comes out
 

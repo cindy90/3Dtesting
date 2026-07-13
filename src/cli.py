@@ -61,10 +61,39 @@ def _write_json(path: str, obj: Any) -> None:
         json.dump(obj, fh, indent=2)
 
 
+def cmd_refimg(cfg: RunConfig, cases: list[Case], force: bool) -> None:
+    """Generate one shared reference image per case (for image-to-3D models)."""
+    from .refimg import generate_reference_images
+    print(f"generating reference images for {len(cases)} cases -> {cfg.refs_dir}")
+    made = generate_reference_images(cases, cfg.refs_dir, cfg.reference_images,
+                                     force=force)
+    print(f"reference images: {len(made)}/{len(cases)} ready in {cfg.refs_dir}")
+
+
+def _apply_image_mode(cfg: RunConfig, cases: list[Case]) -> list[Case]:
+    """Point every case at its shared reference image and switch to image mode.
+
+    Enforces the identical-input rule for a mixed cohort: every model consumes
+    the same pixels. Missing refs are left as-is so the provider fails loudly
+    for that case rather than silently comparing different inputs.
+    """
+    out = []
+    for c in cases:
+        ref = os.path.join(cfg.refs_dir, f"{c.id}.png")
+        c.mode = "image"
+        c.image_path = ref
+        if not os.path.exists(ref):
+            print(f"  ! missing reference image for {c.id}: {ref} "
+                  f"(run `refimg` first)")
+        out.append(c)
+    return out
+
+
 def cmd_generate(cfg: RunConfig, cases: list[Case], only: list[str] | None) -> None:
     results: list[dict[str, Any]] = []
     provider_keys = [k for k in cfg.providers if not only or k in only]
-    print(f"generating {len(cases)} cases x {len(provider_keys)} providers")
+    print(f"generating {len(cases)} cases x {len(provider_keys)} providers "
+          f"[mode={cfg.mode}]")
 
     def _one(pkey: str, case: Case) -> dict[str, Any]:
         prov = build_provider(pkey, cfg.providers[pkey])
@@ -140,20 +169,40 @@ def cmd_report(cfg: RunConfig) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="blind3d")
-    ap.add_argument("command", choices=["generate", "analyze", "blind", "report", "all"])
+    ap.add_argument("command",
+                    choices=["refimg", "generate", "analyze", "blind", "report", "all"])
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--only", nargs="*", help="limit generate to these providers")
     ap.add_argument("--max-cases", type=int, default=None,
                     help="cost cap: use at most N cases, sampled evenly across "
                          "categories (for cheap smoke tests)")
+    ap.add_argument("--mode", choices=["text", "image"], default=None,
+                    help="input mode; 'image' runs every model off the shared "
+                         "reference images (overrides config)")
+    ap.add_argument("--force", action="store_true",
+                    help="refimg: regenerate reference images even if cached")
     args = ap.parse_args(argv)
 
     cfg = load_config(args.config)
+    if args.mode:
+        cfg.mode = args.mode
     cases = load_cases(cfg.cases_file)
     if args.max_cases is not None:
         cases = _sample_cases(cases, args.max_cases)
         print(f"cost cap: using {len(cases)} case(s): "
               f"{', '.join(c.id for c in cases)}")
+
+    if args.command == "refimg":
+        cmd_refimg(cfg, cases, args.force)
+        return
+
+    # image mode: `all` mints refs first; then repoint every case at its shared
+    # image so all models consume identical pixels.
+    if cfg.mode == "image":
+        if args.command == "all":
+            cmd_refimg(cfg, cases, args.force)
+        if args.command in ("generate", "all"):
+            cases = _apply_image_mode(cfg, cases)
 
     if args.command in ("generate", "all"):
         cmd_generate(cfg, cases, args.only)
