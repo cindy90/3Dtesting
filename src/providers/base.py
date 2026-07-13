@@ -93,22 +93,38 @@ class Provider:
         return {"Authorization": f"Bearer {self.api_key}"}
 
     def _request(self, method: str, url: str, **kw) -> requests.Response:
-        """HTTP with bounded exponential backoff on transient failures."""
+        """HTTP with bounded exponential backoff on *transient* failures only.
+
+        Terminal (never retried), raised immediately with an actionable message:
+          * 401/403 — bad/inactive key or no billing
+          * other 4xx except 429 — e.g. 422 schema validation (callers may catch
+            this to try an alternate request shape)
+        Retried with backoff: network errors, 429, and 5xx.
+        """
         delay = 2.0
         last: Exception | None = None
         for attempt in range(5):
             try:
                 resp = self.session.request(method, url, timeout=60, **kw)
-                if resp.status_code in (429, 500, 502, 503, 504):
-                    raise ProviderError(f"transient {resp.status_code}: {resp.text[:200]}")
-                resp.raise_for_status()
-                return resp
-            except Exception as exc:  # noqa: BLE001 - retried
+            except Exception as exc:  # noqa: BLE001 - network error, retry
                 last = exc
-                if attempt == 4:
-                    break
-                time.sleep(delay)
-                delay *= 2
+            else:
+                sc = resp.status_code
+                if sc in (401, 403):
+                    raise ProviderError(
+                        f"auth failed ({sc}) — check {self.api_key_env} is a "
+                        f"valid, active key with billing/credits. "
+                        f"Server said: {resp.text[:200]}")
+                if 400 <= sc < 500 and sc != 429:
+                    raise ProviderError(f"client error {sc}: {resp.text[:300]}")
+                if sc in (429, 500, 502, 503, 504):
+                    last = ProviderError(f"transient {sc}: {resp.text[:200]}")
+                else:
+                    return resp
+            if attempt == 4:
+                break
+            time.sleep(delay)
+            delay *= 2
         raise ProviderError(f"{self.name}: request failed: {last}")
 
     def download(self, url: str, dest: str) -> str:

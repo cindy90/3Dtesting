@@ -6,9 +6,15 @@ on:
   workflow_dispatch:
     inputs:
       providers:
-        description: "Space-separated providers to run (subset of: tripo meshy rodin hunyuan3d trellis)"
+        description: "Providers (subset of: tripo meshy rodin hunyuan3d hunyuan3d_v21 trellis trellis2 triposr instantmesh)"
         required: true
-        default: "tripo meshy"
+        default: "tripo"
+      mode:
+        description: "text = text-native only (tripo/meshy) | image = shared reference image, required for open-source models"
+        required: true
+        default: "text"
+        type: choice
+        options: ["text", "image"]
       max_cases:
         description: "Cost cap: max number of cases (sampled across categories). Start SMALL."
         required: true
@@ -39,6 +45,13 @@ jobs:
       - name: Self-test (no keys, proves the analysis pipeline before spending)
         run: python -m src.selftest
 
+      - name: Reference images (image mode only)
+        if: ${{ github.event.inputs.mode == 'image' }}
+        env:
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+        run: |
+          python -m src.cli refimg --max-cases ${{ github.event.inputs.max_cases }}
+
       - name: Generate
         env:
           TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
@@ -48,6 +61,7 @@ jobs:
         run: |
           python -m src.cli generate \
             --only ${{ github.event.inputs.providers }} \
+            --mode ${{ github.event.inputs.mode }} \
             --max-cases ${{ github.event.inputs.max_cases }}
 
       - name: Analyze

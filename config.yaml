@@ -1,16 +1,36 @@
-# Run configuration. Model versions are pinned here so a benchmark is
+# Run configuration. Model versions/endpoints are pinned here so a benchmark is
 # reproducible and a re-run with a newer version is a one-line diff.
 #
 # `run_id` seeds the blind shuffle (keep it stable to reproduce a run).
 run_id: 2026-07-blind-01
 
+# Input mode:
+#   text  — text-native models only (Tripo, Meshy). Prompt goes straight in.
+#   image — fair mixed cohort: `refimg` mints one shared reference image per
+#           case (FLUX) and EVERY model consumes that identical image. Required
+#           for the open-source image-to-3D models. Override with `--mode`.
+mode: text
+
+# Shared reference-image generator (used only in image mode).
+reference_images:
+  model_id: fal-ai/flux/schnell
+  dir: cases/refs
+  image_size: square_hd
+
 # Which providers to include. Comment a line out to skip that model.
+# Open-source models need FAL_KEY and only work in image mode.
 providers:
+  # --- commercial APIs ---
   tripo:     {model_version: "v2.5-20250123", texture: true, pbr: true}
   meshy:     {ai_model: "meshy-6", target_polycount: 30000}
   rodin:     {tier: "Regular", mesh_mode: "Quad", quality: "high"}
-  hunyuan3d: {model_id: "fal-ai/hunyuan3d/v2"}
-  trellis:   {model_id: "fal-ai/trellis", mesh_simplify: 0.95}
+  # --- open-source cohort (fal.ai, image-to-3D) ---
+  hunyuan3d:     {model_id: "fal-ai/hunyuan3d/v2"}
+  hunyuan3d_v21: {model_id: "fal-ai/hunyuan3d-v21"}
+  trellis:       {model_id: "fal-ai/trellis"}
+  trellis2:      {model_id: "fal-ai/trellis-2", params: {decimation_target: 30000}}
+  triposr:       {model_id: "fal-ai/triposr", params: {mc_resolution: 256}}
+  instantmesh:   {model_id: "fal-ai/instant-mesh"}
 
 # Where generated meshes, metrics, and reports are written.
 out_dir: results

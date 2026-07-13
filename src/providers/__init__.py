@@ -9,14 +9,24 @@ from .tripo import TripoProvider
 from .meshy import MeshyProvider
 from .rodin import RodinProvider
 from .hunyuan3d import Hunyuan3DProvider
+from .hunyuan3d_v21 import Hunyuan3Dv21Provider
 from .trellis import TrellisProvider
+from .trellis2 import Trellis2Provider
+from .triposr import TripoSRProvider
+from .instantmesh import InstantMeshProvider
 
 REGISTRY: dict[str, type[Provider]] = {
+    # commercial APIs
     "tripo": TripoProvider,
     "meshy": MeshyProvider,
     "rodin": RodinProvider,
+    # open-source cohort (image-to-3D, via fal.ai)
     "hunyuan3d": Hunyuan3DProvider,
+    "hunyuan3d_v21": Hunyuan3Dv21Provider,
     "trellis": TrellisProvider,
+    "trellis2": Trellis2Provider,
+    "triposr": TripoSRProvider,
+    "instantmesh": InstantMeshProvider,
 }
 
 

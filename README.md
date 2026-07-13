@@ -1,9 +1,10 @@
 # 3D generation blind test — production-usability edition
 
-A small, reproducible blind-test harness that lines up **Tripo 3.x, Meshy 6,
-Rodin Gen-2.x, Hunyuan3D, and TRELLIS 2** on an identical 30–50 case input set
-and ranks them on **production usability — watertight, topology, riggable — not
-on how pretty they look.**
+A small, reproducible blind-test harness that lines up commercial generators
+(**Tripo 3.x, Meshy 6, Rodin Gen-2.x**) against an open-source cohort
+(**Hunyuan3D v2, Hunyuan3D v2.1, TRELLIS, TRELLIS 2, TripoSR, InstantMesh**) on
+an identical 30–50 case input set and ranks them on **production usability —
+watertight, topology, riggable — not on how pretty they look.**
 
 ## Why this exists
 
@@ -103,7 +104,9 @@ src/
   cli.py                 generate | analyze | blind | report
   selftest.py            offline end-to-end pipeline test (no keys)
   providers/             one file per model, all behind a common submit/poll API
-    tripo, meshy, rodin, fal_base -> hunyuan3d, trellis
+    tripo, meshy, rodin   commercial APIs
+    fal_base -> hunyuan3d, hunyuan3d_v21, trellis, trellis2, triposr, instantmesh
+  refimg.py              shared reference-image generator (FLUX on fal)
   analysis/
     geometry.py          objective per-mesh metrics  (the heart)
     scoring.py           metrics -> sub-scores -> median aggregation
@@ -117,9 +120,13 @@ src/
 - **APIs move.** Endpoint paths and model-version strings are pinned from docs
   current at authoring time — verify them (each provider file names the
   endpoints it hits) before a run.
-- **Hunyuan3D / TRELLIS have no first-party REST API.** They are called through
-  fal.ai's hosted deployments (`src/providers/fal_base.py`); swap in a
-  Tencent-Cloud or self-hosted client by subclassing — the analysis layer is
+- **Open-source models have no first-party REST API.** Hunyuan3D, TRELLIS,
+  TripoSR, InstantMesh are called through fal.ai's hosted deployments
+  (`src/providers/fal_base.py`) and need `FAL_KEY` + image mode. Endpoint ids
+  and image-field names were verified against fal.ai, but fal's per-endpoint
+  schema isn't always publicly fetchable — so `submit` self-heals the image
+  field name (tries `image_url` → `input_image_url` → … on a 422). Swap in a
+  Tencent-Cloud or self-hosted client by subclassing; the analysis layer is
   provider-agnostic.
 - **Riggability is a proxy.** No automated metric fully predicts a clean rig;
   single-shell + symmetry + no-interior-geometry are strong *necessary*

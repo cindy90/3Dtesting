@@ -50,6 +50,10 @@ class FalProvider(Provider):
     image_field = "image_url"
     #: input field name for a text prompt (few fal 3D models are text-native)
     text_field = "prompt"
+    #: fallback image field names to try if the primary is rejected (422).
+    #: fal endpoints vary — some use image_url, Hunyuan uses input_image_url —
+    #: and the exact schema isn't always publicly fetchable, so we self-heal.
+    image_field_candidates = ("image_url", "input_image_url", "image", "images")
 
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Key {self.api_key}"}
@@ -77,20 +81,41 @@ class FalProvider(Provider):
         """Per-model extra input params, supplied via config['params']."""
         return dict(self.config.get("params", {}) or {})
 
-    def _payload(self, case: Case) -> dict[str, Any]:
+    def _payload(self, case: Case, image_field: str | None = None) -> dict[str, Any]:
         """Build the model input. Override per model if field names differ."""
         if case.mode == "image":
-            return {self.image_field: self._image_ref(case), **self._extra_params()}
+            field = image_field or self.image_field
+            return {field: self._image_ref(case), **self._extra_params()}
         return {self.text_field: case.prompt, **self._extra_params()}
 
-    def submit(self, case: Case) -> str:
+    def _post(self, payload: dict[str, Any]) -> str:
         resp = self._request("POST", self._endpoint(),
                              headers={**self._headers(), "Content-Type": "application/json"},
-                             json=self._payload(case))
+                             json=payload)
         rid = resp.json().get("request_id")
         if not rid:
             raise ProviderError(f"{self.name} submit: no request_id in {resp.text[:200]}")
         return rid
+
+    def submit(self, case: Case) -> str:
+        # text mode (or non-image): single shot
+        if case.mode != "image":
+            return self._post(self._payload(case))
+        # image mode: try the configured field, then alternates on a 422/400
+        # schema-validation error, so a wrong field-name guess self-heals.
+        primary = self.image_field
+        candidates = [primary] + [f for f in self.image_field_candidates if f != primary]
+        last: ProviderError | None = None
+        for field in candidates:
+            try:
+                return self._post(self._payload(case, image_field=field))
+            except ProviderError as exc:
+                msg = str(exc)
+                if "client error 4" in msg or "422" in msg or "400" in msg:
+                    last = exc
+                    continue  # likely wrong field name — try the next
+                raise  # auth / network / other — don't mask it
+        raise last or ProviderError(f"{self.name}: submit failed for all image fields")
 
     def status(self, task_id: str) -> tuple[str, dict[str, Any]]:
         base = self._endpoint()
