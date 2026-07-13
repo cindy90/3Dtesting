@@ -30,6 +30,31 @@ from .analysis.scoring import score_mesh, aggregate_model
 from .eval.blind import build_blind_set
 
 
+def _sample_cases(cases: list[Case], n: int) -> list[Case]:
+    """Take at most ``n`` cases, spread evenly across categories.
+
+    Round-robin over the per-category buckets (each kept in file order) so a
+    2-case smoke test still touches two different content types rather than two
+    characters. Deterministic — no randomness.
+    """
+    if n <= 0 or n >= len(cases):
+        return cases
+    buckets: dict[str, list[Case]] = {}
+    for c in cases:
+        buckets.setdefault(c.category, []).append(c)
+    order = sorted(buckets)  # stable category order
+    picked: list[Case] = []
+    i = 0
+    while len(picked) < n:
+        cat = order[i % len(order)]
+        if buckets[cat]:
+            picked.append(buckets[cat].pop(0))
+        i += 1
+        if all(not b for b in buckets.values()):
+            break
+    return picked[:n]
+
+
 def _write_json(path: str, obj: Any) -> None:
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w") as fh:
@@ -118,10 +143,17 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("command", choices=["generate", "analyze", "blind", "report", "all"])
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--only", nargs="*", help="limit generate to these providers")
+    ap.add_argument("--max-cases", type=int, default=None,
+                    help="cost cap: use at most N cases, sampled evenly across "
+                         "categories (for cheap smoke tests)")
     args = ap.parse_args(argv)
 
     cfg = load_config(args.config)
     cases = load_cases(cfg.cases_file)
+    if args.max_cases is not None:
+        cases = _sample_cases(cases, args.max_cases)
+        print(f"cost cap: using {len(cases)} case(s): "
+              f"{', '.join(c.id for c in cases)}")
 
     if args.command in ("generate", "all"):
         cmd_generate(cfg, cases, args.only)

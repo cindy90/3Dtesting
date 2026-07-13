@@ -1,0 +1,78 @@
+name: 3D blind test
+
+# Manual trigger only — real generations cost credits, so nothing runs on push.
+# Set inputs when dispatching to control scope and cost.
+on:
+  workflow_dispatch:
+    inputs:
+      providers:
+        description: "Space-separated providers to run (subset of: tripo meshy rodin hunyuan3d trellis)"
+        required: true
+        default: "tripo meshy"
+      max_cases:
+        description: "Cost cap: max number of cases (sampled across categories). Start SMALL."
+        required: true
+        default: "2"
+
+# One run at a time so parallel dispatches can't double-spend credits.
+concurrency:
+  group: blindtest
+  cancel-in-progress: false
+
+jobs:
+  blindtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Self-test (no keys, proves the analysis pipeline before spending)
+        run: python -m src.selftest
+
+      - name: Generate
+        env:
+          TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
+          MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
+          RODIN_API_KEY: ${{ secrets.RODIN_API_KEY }}
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+        run: |
+          python -m src.cli generate \
+            --only ${{ github.event.inputs.providers }} \
+            --max-cases ${{ github.event.inputs.max_cases }}
+
+      - name: Analyze
+        run: python -m src.cli analyze
+
+      - name: Blind set + report
+        run: |
+          python -m src.cli blind
+          python -m src.cli report
+
+      - name: Show report in the run log
+        if: always()
+        run: |
+          echo "## Blind-test report" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f results/report.md ]; then
+            cat results/report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "no report produced (check the Generate step)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload results (meshes, metrics, scores, report)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blindtest-results
+          path: results/
+          if-no-files-found: warn
+          retention-days: 14
