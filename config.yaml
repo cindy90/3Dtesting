@@ -21,7 +21,13 @@ reference_images:
 # Open-source models need FAL_KEY and only work in image mode.
 providers:
   # --- commercial APIs ---
-  tripo:     {model_version: "v2.5-20250123", texture: true, pbr: true}
+  # Direct Tripo API — official latest families: v3.x / P1 / H3.1 (per
+  # platform.tripo3d.ai docs). Confirmed version strings: v3.0-20250812,
+  # P1-20260311. For H3.1 paste the exact string from the docs' model list.
+  # Needs TRIPO_API_KEY credit (fal hosts only v2.5 + P1).
+  tripo:     {model_version: "v3.0-20250812", texture: true, pbr: true}
+  # tripo_h31 (direct API, same provider): copy exact H3.1 model_version, e.g.
+  # tripo_h31 config would be {model_version: "<H3.1-string-from-docs>"}
   meshy:     {ai_model: "meshy-6", target_polycount: 30000}
   rodin:     {tier: "Regular", mesh_mode: "Quad", quality: "high"}   # 影眸/Deemos
   # Seed3D 2.0 (字节/火山方舟) — 模型ID由用户从方舟控制台确认;
