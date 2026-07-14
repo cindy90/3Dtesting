@@ -49,7 +49,9 @@ providers:
   hunyuan3d_v21: {model_id: "fal-ai/hunyuan3d-v21"}
   hunyuan3d_v31: {model_id: "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d"}  # 腾讯最新旗舰 $0.375/gen
   trellis:       {model_id: "fal-ai/trellis"}
-  trellis2:      {model_id: "fal-ai/trellis-2", params: {decimation_target: 30000}}
+  # trellis2: decimation_target removed — forcing 30k decimation on ONE model
+  # was a config-parity flaw that may explain its low run-12 score; retest clean.
+  trellis2:      {model_id: "fal-ai/trellis-2"}
   triposr:       {model_id: "fal-ai/triposr", params: {mc_resolution: 256}}
   # instantmesh disabled: fal returns 404 "Application instant-mesh not found" —
   # the endpoint no longer exists on fal (third-party references were stale).
@@ -60,6 +62,11 @@ out_dir: results
 
 # Case set.
 cases_file: cases/cases.yaml
+
+# Semantic-fidelity check: leave vlm_model empty for human-gallery-only, or set
+# an Ark vision model id (e.g. doubao-1-5-vision-pro-32k-250115) for auto-judge.
+semantic:
+  vlm_model: ""
 
 # Polling budget per case (seconds). Big characters can take minutes.
 timeout_s: 900

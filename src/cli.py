@@ -159,6 +159,33 @@ def cmd_analyze(cfg: RunConfig, cases: list[Case]) -> None:
     print(f"analyzed {len(scores_out)} meshes -> {cfg.out_dir}/scores.json")
 
 
+def cmd_semantic(cfg: RunConfig) -> None:
+    """Render meshes, build the blind semantic gallery; VLM-judge if configured."""
+    from .eval.semantic import build_semantic_gallery, vlm_judge
+    gen_path = os.path.join(cfg.out_dir, "generation.json")
+    if not os.path.exists(gen_path):
+        raise SystemExit("run `generate` first (no generation.json)")
+    with open(gen_path) as fh:
+        gen = json.load(fh)
+    manifest = build_semantic_gallery(gen, cfg.refs_dir, cfg.out_dir,
+                                      seed=stable_seed(cfg.run_id))
+    print(f"semantic gallery: {len(manifest['items'])} meshes rendered -> "
+          f"{cfg.out_dir}/semantic_gallery.html (+ scoresheet CSV)")
+    vlm_model = (cfg.extra.get("semantic", {}) or {}).get("vlm_model") \
+        or os.environ.get("ARK_VLM_MODEL", "").strip()
+    if vlm_model:
+        api_key = os.environ.get("ARK_API_KEY", "").strip()
+        if not api_key:
+            print("semantic: ARK_VLM_MODEL set but ARK_API_KEY missing — skipping judge")
+            return
+        scores = vlm_judge(manifest, cfg.refs_dir, model=vlm_model, api_key=api_key)
+        _write_json(os.path.join(cfg.out_dir, "semantic_scores.json"), scores)
+        print(f"semantic: VLM scores -> {cfg.out_dir}/semantic_scores.json")
+    else:
+        print("semantic: no VLM model configured (set ARK_VLM_MODEL or "
+              "config semantic.vlm_model) — human scoresheet only")
+
+
 def cmd_blind(cfg: RunConfig) -> None:
     gen_path = os.path.join(cfg.out_dir, "generation.json")
     with open(gen_path) as fh:
@@ -177,7 +204,7 @@ def cmd_report(cfg: RunConfig) -> None:
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="blind3d")
     ap.add_argument("command",
-                    choices=["refimg", "generate", "analyze", "blind", "report", "all"])
+                    choices=["refimg", "generate", "analyze", "semantic", "blind", "report", "all"])
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--only", nargs="*", help="limit generate to these providers")
     ap.add_argument("--max-cases", type=int, default=None,
@@ -215,6 +242,8 @@ def main(argv: list[str] | None = None) -> None:
         cmd_generate(cfg, cases, args.only)
     if args.command in ("analyze", "all"):
         cmd_analyze(cfg, cases)
+    if args.command in ("semantic", "all"):
+        cmd_semantic(cfg)
     if args.command in ("blind", "all"):
         cmd_blind(cfg)
     if args.command in ("report", "all"):

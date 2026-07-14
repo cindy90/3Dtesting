@@ -81,6 +81,44 @@ def build_report(cfg: RunConfig) -> str:
                  "reference only and does not affect rank — this is the exact "
                  "dimension public arenas over-weight.*\n")
 
+    # --- second profile: game-asset readiness (budget fit + UVs) ---
+    lines.append("## Game-asset profile (median; budget-fit 0.15 + UV 0.10, "
+                 "softer watertightness)\n")
+    lines.append("| Model | Median game-ready | Budget fit | UV | Watertight | Topology |")
+    lines.append("|---|---:|---:|---:|---:|---:|")
+    game_rank = sorted(providers,
+                       key=lambda p: (agg[p].get("median_game_ready_score") or -1),
+                       reverse=True)
+    for p in game_rank:
+        a = agg[p]
+        lines.append(
+            f"| **{p}** | {_fmt(a.get('median_game_ready_score'))} | "
+            f"{_fmt(a.get('median_budget_fit_score'))} | {_fmt(a.get('median_uv_score'))} | "
+            f"{_fmt(a.get('median_watertight_score'))} | {_fmt(a.get('median_topology_score'))} |"
+        )
+    lines.append("\n*The print/sim headline rewards dense watertight sculpts; "
+                 "this profile asks whether the mesh fits a real-time budget "
+                 "(1.5k-150k tris) and ships UVs. Read both — they answer "
+                 "different pipelines.*\n")
+
+    # --- semantic fidelity (if the VLM judge or human sheet has been run) ---
+    sem_path = os.path.join(cfg.out_dir, "semantic_scores.json")
+    if os.path.exists(sem_path):
+        sem = _load(sem_path)
+        by_p: dict[str, list[float]] = defaultdict(list)
+        for s in sem:
+            v = s.get("vlm_match_1to5")
+            if v is not None:
+                by_p[s["provider"]].append(float(v))
+        if by_p:
+            lines.append("## Semantic fidelity (VLM judge, median 1-5 — does "
+                         "the mesh match the reference?)\n")
+            lines.append("| Model | Median match | n |")
+            lines.append("|---|---:|---:|")
+            for p in sorted(by_p, key=lambda k: -median(by_p[k])):
+                lines.append(f"| {p} | {median(by_p[p]):.1f} | {len(by_p[p])} |")
+            lines.append("")
+
     # --- watertight pass-rate: a blunt, decision-useful number ---
     metrics = _load(os.path.join(cfg.out_dir, "metrics.json"))
     wt = defaultdict(lambda: [0, 0])  # provider -> [watertight, total_ok]

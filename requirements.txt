@@ -8,5 +8,9 @@ numpy>=1.24
 scipy>=1.10          # sparse ops used by trimesh proximity / normals
 rtree>=1.0           # spatial index for ray / proximity queries
 
+# Semantic-fidelity check (multi-view renders for blind gallery / VLM judge)
+matplotlib>=3.7
+fast-simplification>=0.1.7
+
 # Optional but recommended for robust glb/obj loading and boolean checks:
 #   pip install "trimesh[easy]"

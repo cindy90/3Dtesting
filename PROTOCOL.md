@@ -61,6 +61,22 @@ All thresholds and weights live at the top of `src/analysis/geometry.py` and
 `src/analysis/scoring.py` so the ranking is fully auditable and tunable in one
 place.
 
+**Two profiles, two leaderboards.** The headline production score (above) is a
+print/sim profile: it rewards closed, clean geometry and is indifferent to
+polygon budgets and UVs. A second **game-asset profile**
+(`game_ready_score`: watertight .25 / topology .30 / riggability .20 /
+budget-fit .15 / UV .10) asks whether the mesh fits a real-time budget
+(1.5k-150k tris) and ships UVs. Both are reported; a dense watertight sculpt
+and a lean game mesh legitimately rank differently across the two.
+
+**Semantic fidelity.** Geometry cannot tell a watertight potato from a
+watertight knight. The `semantic` step renders every mesh to multi-view
+silhouettes, builds a blinded human gallery + scoresheet
+(`semantic_gallery.html`), and — when an Ark vision model is configured —
+runs a VLM judge scoring reference-vs-mesh match 1-5
+(`semantic_scores.json`, joined into the report). Geometry scores are never
+mixed into the semantic score or vice versa.
+
 ## Sample size
 
 30–50 cases is the sweet spot: enough for a stable median across the four

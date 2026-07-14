@@ -20,12 +20,30 @@ from __future__ import annotations
 from statistics import median
 from typing import Any, Iterable
 
-# Sub-score weights inside the headline production score.
+# Sub-score weights inside the headline production score (print/sim profile).
 WEIGHTS = {
     "watertight": 0.40,   # printability / sim / boolean-ability
     "topology": 0.35,     # re-mesh, LOD, clean deformation
     "riggability": 0.25,  # animation readiness
 }
+
+# Second, separately-reported profile: GAME-ASSET readiness. The print/sim
+# profile rewards dense watertight sculpts and ignores polygon budgets & UVs —
+# fine for printing, wrong for engines. This profile adds budget fit and UV
+# presence and softens watertightness (engines tolerate some openness).
+# Both leaderboards are reported; neither replaces the other.
+GAME_WEIGHTS = {
+    "watertight": 0.25,
+    "topology": 0.30,
+    "riggability": 0.20,
+    "budget_fit": 0.15,   # faces within a real-time asset budget
+    "uv": 0.10,           # UVs present = texturable without unwrap work
+}
+
+# Real-time budget band: full credit inside, log2 half-life outside. Wide on
+# purpose — hero assets legitimately reach ~150k tris; film/print density
+# (500k+) or sub-1k blobs both need rework.
+_BUDGET_LO, _BUDGET_HI = 1_500, 150_000
 
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 100.0) -> float:
@@ -118,22 +136,51 @@ def asset_completeness(m: dict[str, Any]) -> float:
     )
 
 
+def budget_fit_score(m: dict[str, Any]) -> float:
+    """100 inside the real-time band, halving per doubling outside it."""
+    import math
+    faces = m.get("n_faces", 0) or 0
+    if faces <= 0:
+        return 0.0
+    if _BUDGET_LO <= faces <= _BUDGET_HI:
+        return 100.0
+    ratio = _BUDGET_LO / faces if faces < _BUDGET_LO else faces / _BUDGET_HI
+    return _clamp(100.0 * (0.5 ** math.log2(ratio)))
+
+
 def score_mesh(metrics: dict[str, Any], *, expect_symmetry: bool = False) -> dict[str, Any]:
-    """Compute sub-scores + weighted production score for one mesh."""
+    """Compute sub-scores + both profile scores for one mesh.
+
+    ``production_score`` (print/sim profile) keeps its frozen definition for
+    continuity with earlier runs; ``game_ready_score`` is the second,
+    engine-oriented profile (budget fit + UVs, softer watertightness).
+    """
     wt = watertight_score(metrics)
     topo = topology_score(metrics)
     rig = riggability_score(metrics, expect_symmetry=expect_symmetry)
+    budget = budget_fit_score(metrics)
+    uv = 100.0 * bool(metrics.get("has_uv"))
     production = (
         WEIGHTS["watertight"] * wt
         + WEIGHTS["topology"] * topo
         + WEIGHTS["riggability"] * rig
     )
+    game = (
+        GAME_WEIGHTS["watertight"] * wt
+        + GAME_WEIGHTS["topology"] * topo
+        + GAME_WEIGHTS["riggability"] * rig
+        + GAME_WEIGHTS["budget_fit"] * budget
+        + GAME_WEIGHTS["uv"] * uv
+    )
     return {
         "watertight_score": round(wt, 2),
         "topology_score": round(topo, 2),
         "riggability_score": round(rig, 2),
+        "budget_fit_score": round(budget, 2),
+        "uv_score": round(uv, 2),
         "asset_completeness": round(asset_completeness(metrics), 2),
         "production_score": round(production, 2),
+        "game_ready_score": round(game, 2),
     }
 
 
@@ -152,11 +199,14 @@ def aggregate_model(per_case_scores: list[dict[str, Any]]) -> dict[str, Any]:
     """
     keys = [
         "production_score",
+        "game_ready_score",
         "watertight_score",
         "topology_score",
         "riggability_score",
+        "budget_fit_score",
+        "uv_score",
         "asset_completeness",
     ]
-    out = {f"median_{k}": _median(s[k] for s in per_case_scores) for k in keys}
+    out = {f"median_{k}": _median(s.get(k) for s in per_case_scores) for k in keys}
     out["n_scored"] = len(per_case_scores)
     return out

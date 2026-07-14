@@ -74,6 +74,12 @@ jobs:
       - name: Analyze
         run: python -m src.cli analyze
 
+      - name: Semantic gallery (+ VLM judge when ARK_VLM_MODEL is set)
+        env:
+          ARK_API_KEY: ${{ secrets.ARK_API_KEY }}
+          ARK_VLM_MODEL: ${{ vars.ARK_VLM_MODEL }}
+        run: python -m src.cli semantic
+
       - name: Blind set + report
         run: |
           python -m src.cli blind
