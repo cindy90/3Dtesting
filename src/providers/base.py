@@ -110,11 +110,17 @@ class Provider:
                 last = exc
             else:
                 sc = resp.status_code
-                if sc in (401, 403):
+                if sc == 401:
                     raise ProviderError(
-                        f"auth failed ({sc}) — check {self.api_key_env} is a "
-                        f"valid, active key with billing/credits. "
-                        f"Server said: {resp.text[:200]}")
+                        f"auth failed (401) — {self.api_key_env} is invalid or "
+                        f"rejected. Server said: {resp.text[:250]}")
+                if sc == 403:
+                    # 403 covers both permission and (for Tripo) out-of-credit,
+                    # so surface the body verbatim rather than guessing.
+                    raise ProviderError(
+                        f"forbidden (403) — key valid but request denied "
+                        f"(often: account out of credit/billing). "
+                        f"Server said: {resp.text[:250]}")
                 if 400 <= sc < 500 and sc != 429:
                     raise ProviderError(f"client error {sc}: {resp.text[:300]}")
                 if sc in (429, 500, 502, 503, 504):
