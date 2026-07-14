@@ -41,6 +41,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # optional fast ray backend — massively speeds the interior-face probe
+          # on dense meshes. Non-fatal: analysis falls back to pure-python + a
+          # time-box if the wheel isn't available for the runner.
+          pip install embreex || echo "embreex unavailable; using pure-python ray backend"
 
       - name: Self-test (no keys, proves the analysis pipeline before spending)
         run: python -m src.selftest

@@ -15,9 +15,10 @@ auditable measurement layer.
 
 from __future__ import annotations
 
-import math
+import signal
+import threading
 from dataclasses import dataclass, field, asdict
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 
@@ -36,8 +37,62 @@ _DEGENERATE_AREA_RATIO = 1e-4
 
 # Symmetry probe: a character is expected to be roughly bilaterally symmetric
 # about the X axis. We mirror and measure the residual as a fraction of the
-# bounding-box diagonal, so the number is scale-invariant.
-_SYMMETRY_SAMPLES = 4000
+# bounding-box diagonal, so the number is scale-invariant. Kept modest so the
+# proximity queries stay fast on production-density meshes.
+_SYMMETRY_SAMPLES = 1500
+
+# Interior-face ray probe cost is O(rays x faces). Real generated meshes are
+# 10k-500k faces, so we cap rays hard and — when there is no fast ray backend
+# (embree) — skip the probe entirely above this face count rather than hang.
+_MAX_RAYS = 600
+_RAY_SKIP_FACES = 300_000
+
+# Per-probe wall-clock ceilings (seconds). The expensive geometric probes are
+# time-boxed so one pathological mesh can never stall a batch run; on timeout
+# the probe yields a neutral default and the cheap, decisive metrics
+# (watertight/topology) are still reported.
+_PROBE_TIMEOUT_S = 25
+
+
+def _fast_ray_available() -> bool:
+    """True if a compiled embree backend is importable (trimesh will use it)."""
+    try:
+        import embreex  # noqa: F401
+        return True
+    except Exception:
+        try:
+            import pyembree  # noqa: F401
+            return True
+        except Exception:
+            return False
+
+
+def _run_with_timeout(fn: Callable[[], Any], seconds: int, default: Any) -> Any:
+    """Run ``fn`` but abort with ``default`` if it exceeds ``seconds``.
+
+    Uses SIGALRM, which is main-thread + POSIX only; if unavailable (worker
+    thread, Windows) we fall back to running ``fn`` directly. Analysis runs on
+    the main thread in the CLI, which is where the ceiling matters.
+    """
+    if threading.current_thread() is not threading.main_thread() \
+            or not hasattr(signal, "SIGALRM"):
+        try:
+            return fn()
+        except Exception:
+            return default
+
+    def _handler(signum, frame):  # noqa: ANN001
+        raise TimeoutError("probe exceeded time budget")
+
+    old = signal.signal(signal.SIGALRM, _handler)
+    try:
+        signal.alarm(seconds)
+        return fn()
+    except Exception:
+        return default
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
 
 
 @dataclass
@@ -128,14 +183,6 @@ def _triangle_aspect_ratios(mesh: trimesh.Trimesh) -> np.ndarray:
     return ar
 
 
-def _count_nonmanifold_edges(mesh: trimesh.Trimesh) -> int:
-    """Edges incident to more than two faces (non-manifold)."""
-    edges = mesh.edges_sorted
-    # unique rows + counts
-    _, counts = np.unique(edges, axis=0, return_counts=True)
-    return int(np.count_nonzero(counts > 2))
-
-
 def _symmetry_residual(mesh: trimesh.Trimesh) -> float | None:
     """Bilateral-symmetry residual about the X axis, scale-normalised.
 
@@ -167,17 +214,23 @@ def _estimate_internal_faces(mesh: trimesh.Trimesh) -> int:
     """Rough count of inward-facing / occluded interior faces.
 
     Interior geometry (a second shell inside the body, or inverted caps) wrecks
-    skinning and bloats poly count. We approximate by casting a ray from each
-    face centroid along its normal: if it immediately re-enters solid geometry,
-    the face is likely interior. Sampled to stay cheap on dense meshes.
+    skinning and bloats poly count. We approximate by casting a ray from a
+    sample of face centroids along their normal: if it immediately re-enters
+    solid geometry, the face is likely interior.
+
+    Cost is O(rays x faces). Rays are capped at ``_MAX_RAYS`` and, without a
+    compiled ray backend (embree), the probe is skipped on very dense meshes
+    (returns -1 as "not measured") rather than stalling for minutes.
     """
     try:
         n = len(mesh.faces)
         if n == 0:
             return 0
-        idx = np.arange(n)
-        if n > 3000:
-            idx = np.random.default_rng(0).choice(n, 3000, replace=False)
+        if n > _RAY_SKIP_FACES and not _fast_ray_available():
+            return -1  # not measured: too dense for the pure-python backend
+        k = min(_MAX_RAYS, n)
+        idx = (np.random.default_rng(0).choice(n, k, replace=False)
+               if n > k else np.arange(n))
         origins = mesh.triangles_center[idx] + mesh.face_normals[idx] * 1e-4
         hits = mesh.ray.intersects_any(origins, mesh.face_normals[idx])
         # a face whose *outward* normal ray immediately hits more surface is
@@ -185,7 +238,7 @@ def _estimate_internal_faces(mesh: trimesh.Trimesh) -> int:
         frac = float(np.count_nonzero(hits)) / len(idx)
         return int(round(frac * n))
     except Exception:
-        return 0
+        return -1
 
 
 def analyze_mesh(path: str, *, expect_symmetry: bool = False) -> MeshMetrics:
@@ -217,10 +270,12 @@ def analyze_mesh(path: str, *, expect_symmetry: bool = False) -> MeshMetrics:
         m.n_connected_components = int(len(components))
     except Exception:
         m.n_connected_components = 1
-    # open (boundary) edges appear exactly once in the sorted edge list
-    edges = mesh.edges_sorted
-    _, counts = np.unique(edges, axis=0, return_counts=True)
-    m.n_boundary_edges = int(np.count_nonzero(counts == 1))
+    # Unique-edge counts drive BOTH boundary edges (count==1) and non-manifold
+    # edges (count>2). Computing np.unique(axis=0) once and reusing it avoids
+    # paying for the single most expensive op twice on dense meshes.
+    _, edge_counts = np.unique(mesh.edges_sorted, axis=0, return_counts=True)
+    m.n_boundary_edges = int(np.count_nonzero(edge_counts == 1))
+    m.n_nonmanifold_edges = int(np.count_nonzero(edge_counts > 2))
     m.volume = float(mesh.volume) if mesh.is_watertight else 0.0
     m.is_volume = bool(mesh.is_volume)
     if m.is_watertight and m.n_connected_components > 0:
@@ -228,7 +283,6 @@ def analyze_mesh(path: str, *, expect_symmetry: bool = False) -> MeshMetrics:
         m.genus = max(0, int((2 * m.n_connected_components - m.euler_number) // 2))
 
     # --- topology quality ---
-    m.n_nonmanifold_edges = _count_nonmanifold_edges(mesh)
     areas = mesh.area_faces
     med_area = float(np.median(areas)) if len(areas) else 0.0
     if med_area > 0:
@@ -255,9 +309,16 @@ def analyze_mesh(path: str, *, expect_symmetry: bool = False) -> MeshMetrics:
 
     # --- riggability ---
     m.single_shell = bool(m.is_watertight and m.n_connected_components == 1)
+    # both probes are time-boxed so a pathological dense mesh can't stall a run
     if expect_symmetry:
-        m.symmetry_residual = _symmetry_residual(mesh)
-    m.n_internal_faces_est = _estimate_internal_faces(mesh)
+        m.symmetry_residual = _run_with_timeout(
+            lambda: _symmetry_residual(mesh), _PROBE_TIMEOUT_S, None)
+        if m.symmetry_residual is None:
+            m.extra["symmetry"] = "not_measured"
+    m.n_internal_faces_est = _run_with_timeout(
+        lambda: _estimate_internal_faces(mesh), _PROBE_TIMEOUT_S, -1)
+    if m.n_internal_faces_est < 0:
+        m.extra["internal_faces"] = "not_measured"
 
     # --- asset completeness ---
     try:

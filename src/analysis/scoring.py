@@ -86,10 +86,14 @@ def riggability_score(m: dict[str, Any], *, expect_symmetry: bool) -> float:
     # fragmentation penalty (many components == fused/floating parts)
     comps = m.get("n_connected_components", 1)
     score += 20.0 * (0.5 ** (max(0, comps - 1) / 3.0))
-    # interior geometry wrecks skin weights
+    # interior geometry wrecks skin weights; -1 means "not measured" (too dense
+    # for the ray probe) -> stay neutral rather than penalise.
     internal = m.get("n_internal_faces_est", 0)
-    faces = max(1, m.get("n_faces", 1))
-    score += 20.0 * (1.0 - _clamp(internal / faces, 0, 1))
+    if internal is None or internal < 0:
+        score += 20.0
+    else:
+        faces = max(1, m.get("n_faces", 1))
+        score += 20.0 * (1.0 - _clamp(internal / faces, 0, 1))
     # symmetry (characters only); non-character cases get the credit for free
     if expect_symmetry:
         res = m.get("symmetry_residual")

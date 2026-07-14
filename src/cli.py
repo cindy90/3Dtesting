@@ -139,6 +139,7 @@ def cmd_analyze(cfg: RunConfig, cases: list[Case]) -> None:
             continue
         case = case_by_id.get(r["case_id"])
         expect_sym = bool(case and case.expect_symmetry)
+        print(f"  [{r['provider']}] {r['case_id']}: analyzing...", flush=True)
         m = analyze_mesh(r["mesh_path"], expect_symmetry=expect_sym).to_dict()
         m.update({"provider": r["provider"], "case_id": r["case_id"]})
         metrics_out.append(m)
