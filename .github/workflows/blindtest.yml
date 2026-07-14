@@ -54,7 +54,9 @@ jobs:
         env:
           FAL_KEY: ${{ secrets.FAL_KEY }}
         run: |
-          python -m src.cli refimg --max-cases ${{ github.event.inputs.max_cases }}
+          # on failure, run the zero-cost fal diagnostics so the logs explain why
+          python -m src.cli refimg --max-cases ${{ github.event.inputs.max_cases }} \
+            || { python -m src.fal_diag; exit 1; }
 
       - name: Generate
         env:
