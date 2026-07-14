@@ -15,6 +15,7 @@ from .trellis2 import Trellis2Provider
 from .triposr import TripoSRProvider
 from .instantmesh import InstantMeshProvider
 from .seed3d import Seed3DProvider
+from .rodin_fal import RodinFalProvider
 
 REGISTRY: dict[str, type[Provider]] = {
     # commercial APIs
@@ -22,6 +23,8 @@ REGISTRY: dict[str, type[Provider]] = {
     "meshy": MeshyProvider,
     "rodin": RodinProvider,       # 影眸/Deemos Rodin (needs RODIN_API_KEY)
     "seed3d": Seed3DProvider,     # ByteDance via Volcengine Ark (needs ARK_API_KEY)
+    # hosted-on-fal commercial (uses FAL_KEY, no separate account)
+    "rodin_fal": RodinFalProvider,
     # open-source cohort (image-to-3D, via fal.ai)
     "hunyuan3d": Hunyuan3DProvider,
     "hunyuan3d_v21": Hunyuan3Dv21Provider,
