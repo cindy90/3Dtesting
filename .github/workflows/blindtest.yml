@@ -79,11 +79,16 @@ jobs:
       - name: Show report in the run log
         if: always()
         run: |
-          echo "## Blind-test report" >> "$GITHUB_STEP_SUMMARY"
           if [ -f results/report.md ]; then
-            cat results/report.md >> "$GITHUB_STEP_SUMMARY"
+            echo "==================== REPORT ===================="
+            cat results/report.md
+            echo "==================== SCORES (per mesh) ===================="
+            cat results/scores.json
+            echo "==================== METRICS (raw geometry) ===================="
+            cat results/metrics.json
+            { echo "## Blind-test report"; cat results/report.md; } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "no report produced (check the Generate step)" >> "$GITHUB_STEP_SUMMARY"
+            echo "no report produced (check the Generate step)"
           fi
 
       - name: Upload results (meshes, metrics, scores, report)
