@@ -71,7 +71,8 @@ class FalProvider(Provider):
             return {field: self._image_ref(case), **self._extra_params()}
         return {self.text_field: case.prompt, **self._extra_params()}
 
-    def _post(self, payload: dict[str, Any]) -> str:
+    def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Submit and return the full response body (request_id + poll URLs)."""
         headers = {**self._headers(), "Content-Type": "application/json"}
         url = self._endpoint()
         # Manually follow redirects PRESERVING POST. requests' default would
@@ -87,15 +88,45 @@ class FalProvider(Provider):
             resp = self._request("POST", url, headers=headers, json=payload,
                                  allow_redirects=False)
             hops += 1
-        rid = resp.json().get("request_id")
-        if not rid:
+        body = resp.json()
+        if not body.get("request_id"):
             raise ProviderError(f"{self.name} submit: no request_id in {resp.text[:200]}")
+        return body
+
+    def _remember(self, sub: dict[str, Any]) -> str:
+        """Stash the submit response; fal's own URLs are the source of truth.
+
+        For subpath models (fal-ai/flux/schnell, fal-ai/hunyuan3d/v2) the
+        submit URL uses the FULL path but requests are polled under the ROOT
+        app alias (…/fal-ai/flux/requests/{id}) — constructing the poll URL
+        from the model id yields the submit route, which answers GET with the
+        infamous ``405 Allow: POST``. So we keep status_url/response_url as
+        returned by the API and never build them ourselves.
+        """
+        if not hasattr(self, "_tasks"):
+            self._tasks: dict[str, dict[str, Any]] = {}
+        rid = sub["request_id"]
+        self._tasks[rid] = sub
         return rid
+
+    def _poll_urls(self, task_id: str) -> tuple[str, str]:
+        sub = getattr(self, "_tasks", {}).get(task_id, {})
+        status_url = sub.get("status_url")
+        response_url = sub.get("response_url")
+        if status_url and response_url:
+            return status_url, response_url
+        # fallback (e.g. resumed task id): fal convention — requests live under
+        # the root app alias, i.e. the first two path segments of the model id.
+        mid = self.config.get("model_id", self.model_id)
+        root = "/".join(mid.split("/")[:2])
+        base = f"https://queue.fal.run/{root}"
+        return (f"{base}/requests/{task_id}/status",
+                f"{base}/requests/{task_id}")
 
     def submit(self, case: Case) -> str:
         # text mode (or non-image): single shot
         if case.mode != "image":
-            return self._post(self._payload(case))
+            return self._remember(self._post(self._payload(case)))
         # image mode: try the configured field, then alternates on a 422/400
         # schema-validation error, so a wrong field-name guess self-heals.
         primary = self.image_field
@@ -103,7 +134,7 @@ class FalProvider(Provider):
         last: ProviderError | None = None
         for field in candidates:
             try:
-                return self._post(self._payload(case, image_field=field))
+                return self._remember(self._post(self._payload(case, image_field=field)))
             except ProviderError as exc:
                 msg = str(exc)
                 if "client error 4" in msg or "422" in msg or "400" in msg:
@@ -113,14 +144,13 @@ class FalProvider(Provider):
         raise last or ProviderError(f"{self.name}: submit failed for all image fields")
 
     def status(self, task_id: str) -> tuple[str, dict[str, Any]]:
-        base = self._endpoint()
-        resp = self._request("GET", f"{base}/requests/{task_id}/status",
-                             headers=self._headers())
+        status_url, response_url = self._poll_urls(task_id)
+        resp = self._request("GET", status_url, headers=self._headers())
         data = resp.json()
         norm = _STATUS_MAP.get(str(data.get("status", "")).upper(), "running")
         if norm == "succeeded":
             # fetch full result payload which carries the asset url
-            r2 = self._request("GET", f"{base}/requests/{task_id}", headers=self._headers())
+            r2 = self._request("GET", response_url, headers=self._headers())
             data = r2.json()
         return norm, data
 
