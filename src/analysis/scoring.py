@@ -58,20 +58,50 @@ def _decay(value: float, half: float) -> float:
 
 
 def watertight_score(m: dict[str, Any]) -> float:
-    """Closed, single-shell, correctly-oriented solid == 100."""
+    """Closure scored by DEFECT MAGNITUDE, not a binary cliff. (scoring v2)
+
+    v1 scored ``is_watertight`` as a 55-point binary + 15-point is_volume,
+    so a 1.5M-face mesh with TWO defective edges (0.0002% — invisible,
+    auto-repairable in any pipeline) lost ~70 points and ranked with genuinely
+    holed meshes. Forensics on real outputs showed exactly this pattern
+    (multi-part game-style assets fail on 2-6 seam edges). v2 uses a smooth
+    curve over the defective-edge ratio, credits per-part closure
+    (closed_face_fraction) and one-click repairability.
+    """
     if not m.get("ok"):
         return 0.0
-    score = 0.0
+    import math
     if m.get("is_watertight"):
-        score += 55.0
-    if m.get("is_winding_consistent"):
-        score += 15.0
-    if m.get("is_volume"):  # watertight + consistent + positive volume
-        score += 15.0
-    # penalise open boundary edges relative to nothing-open ideal
-    be = m.get("n_boundary_edges", 0)
-    score += 15.0 * (0.5 ** (be / 20.0)) if be else 15.0
-    return _clamp(score)
+        base = 100.0 if m.get("is_volume") else 94.0
+    else:
+        edges = m.get("extra", {}).get("n_edges") or (m.get("n_faces", 0) * 1.5) or 1
+        defects = m.get("n_boundary_edges", 0) + m.get("n_nonmanifold_edges", 0)
+        if defects <= 0:
+            base = 90.0  # closure broken only by winding/orientation
+        else:
+            x = math.log10(defects / edges)
+            #        ratio:  1e-7  1e-6  1e-5  1e-4  1e-3  1e-2  1e-1   1
+            pts = [(-7, 95), (-6, 88), (-5, 78), (-4, 62), (-3, 45),
+                   (-2, 25), (-1, 10), (0, 5)]
+            if x <= pts[0][0]:
+                base = pts[0][1]
+            elif x >= pts[-1][0]:
+                base = pts[-1][1]
+            else:
+                for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+                    if x0 <= x <= x1:
+                        base = y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+                        break
+        # most faces live in closed parts -> the asset is largely solid
+        cff = m.get("extra", {}).get("closed_face_fraction")
+        if cff is not None:
+            base = max(base, 85.0 * float(cff))
+        # a plain fill-holes pass closes it -> production cost is one click
+        if m.get("extra", {}).get("watertight_after_repair"):
+            base = max(base, 72.0)
+    if not m.get("is_winding_consistent"):
+        base -= 8.0
+    return _clamp(base)
 
 
 def topology_score(m: dict[str, Any]) -> float:
@@ -99,11 +129,17 @@ def riggability_score(m: dict[str, Any], *, expect_symmetry: bool) -> float:
     if not m.get("ok"):
         return 0.0
     score = 0.0
-    # one closed shell is the single biggest riggability prerequisite
-    score += 40.0 if m.get("single_shell") else 0.0
-    # fragmentation penalty (many components == fused/floating parts)
+    # closure of the parts (v2): a multi-part asset whose parts are each
+    # closed (eyes/teeth/props — standard game construction) rigs fine;
+    # only the open fraction hurts. Falls back to the v1 single-shell binary
+    # when the fraction wasn't recorded.
+    cff = m.get("extra", {}).get("closed_face_fraction") if isinstance(m.get("extra"), dict) else None
+    if cff is None:
+        cff = 1.0 if m.get("single_shell") else (1.0 if m.get("is_watertight") else 0.0)
+    score += 40.0 * float(cff)
+    # fragmentation penalty, softened (parts are a style, dozens are a mess)
     comps = m.get("n_connected_components", 1)
-    score += 20.0 * (0.5 ** (max(0, comps - 1) / 3.0))
+    score += 20.0 * (0.5 ** (max(0, comps - 1) / 6.0))
     # interior geometry wrecks skin weights; -1 means "not measured" (too dense
     # for the ray probe) -> stay neutral rather than penalise.
     internal = m.get("n_internal_faces_est", 0)

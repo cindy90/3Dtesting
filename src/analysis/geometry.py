@@ -301,14 +301,34 @@ def analyze_mesh(path: str, *, expect_symmetry: bool = False) -> MeshMetrics:
     try:
         components = mesh.split(only_watertight=False)
         m.n_connected_components = int(len(components))
+        # Parts-aware closure: a game-style asset is many components, EACH
+        # closed (eyes, teeth, props). Whole-mesh is_watertight can't see that;
+        # closed_face_fraction = share of faces living in closed components.
+        if len(components) > 1:
+            closed = sum(int(len(c.faces)) for c in components if c.is_watertight)
+            m.extra["closed_face_fraction"] = round(
+                closed / max(1, sum(int(len(c.faces)) for c in components)), 4)
+        else:
+            m.extra["closed_face_fraction"] = 1.0 if m.is_watertight else 0.0
     except Exception:
         m.n_connected_components = 1
+        m.extra["closed_face_fraction"] = 1.0 if m.is_watertight else 0.0
     # Unique-edge counts drive BOTH boundary edges (count==1) and non-manifold
     # edges (count>2). Computing np.unique(axis=0) once and reusing it avoids
     # paying for the single most expensive op twice on dense meshes.
     _, edge_counts = np.unique(mesh.edges_sorted, axis=0, return_counts=True)
     m.n_boundary_edges = int(np.count_nonzero(edge_counts == 1))
     m.n_nonmanifold_edges = int(np.count_nonzero(edge_counts > 2))
+    m.extra["n_edges"] = int(len(edge_counts))
+    # Repairability probe: a handful of defective edges is one auto-repair away
+    # from closed — measure it instead of punishing it like gaping holes.
+    if not m.is_watertight and 0 < m.n_boundary_edges <= 20000:
+        try:
+            probe = mesh.copy()
+            trimesh.repair.fill_holes(probe)
+            m.extra["watertight_after_repair"] = bool(probe.is_watertight)
+        except Exception:
+            m.extra["watertight_after_repair"] = False
     m.volume = float(mesh.volume) if mesh.is_watertight else 0.0
     m.is_volume = bool(mesh.is_volume)
     if m.is_watertight and m.n_connected_components > 0:
