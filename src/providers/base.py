@@ -13,10 +13,27 @@ config change, not a code change.
 
 from __future__ import annotations
 
+import base64
+import mimetypes
 import os
 import time
 from dataclasses import dataclass, field
 from typing import Any
+
+
+def image_to_data_uri(path: str) -> str:
+    """Base64-encode a local image as a ``data:`` URI.
+
+    Shared by every provider that consumes the local *shared reference image*
+    in image mode (fal cohort, Meshy, …). Most image-to-3D APIs accept a data
+    URI in their image field, so we avoid a separate upload round-trip and keep
+    the input byte-identical across models.
+    """
+    mime, _ = mimetypes.guess_type(path)
+    mime = mime or "image/png"
+    with open(path, "rb") as fh:
+        b64 = base64.b64encode(fh.read()).decode("ascii")
+    return f"data:{mime};base64,{b64}"
 
 import requests
 

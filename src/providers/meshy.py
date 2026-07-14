@@ -12,10 +12,11 @@ Auth: ``Authorization: Bearer <MESHY_API_KEY>``.
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Any
 
-from .base import Provider, Case, ProviderError
+from .base import Provider, Case, ProviderError, image_to_data_uri
 
 _BASE = "https://api.meshy.ai/openapi"
 
@@ -34,10 +35,20 @@ class MeshyProvider(Provider):
 
     def _submit_preview(self, case: Case) -> str:
         if case.mode == "image":
-            if not case.image_path:
-                raise ProviderError("image mode requires image_path")
-            # image-to-3d takes a data URI or public URL; caller supplies URL in notes
-            payload = {"image_url": case.notes or case.image_path, "ai_model": self._ai_model()}
+            src = case.image_path or case.notes
+            if not src:
+                raise ProviderError("image mode requires a reference image "
+                                    "(run `refimg` first)")
+            # Meshy image-to-3D accepts a public URL or a base64 data URI; encode
+            # the local shared reference image so every model gets identical bytes.
+            if src.startswith("http://") or src.startswith("https://"):
+                image_url = src
+            elif os.path.exists(src):
+                image_url = image_to_data_uri(src)
+            else:
+                raise ProviderError(f"meshy: reference image not found: {src}")
+            payload = {"image_url": image_url, "ai_model": self._ai_model(),
+                       "enable_pbr": True}
             url = f"{_BASE}/v1/image-to-3d"
         else:
             payload = {

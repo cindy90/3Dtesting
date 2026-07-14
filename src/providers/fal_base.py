@@ -15,32 +15,15 @@ Auth: ``Authorization: Key <FAL_KEY>``.
 
 from __future__ import annotations
 
-import base64
-import mimetypes
 import os
 from typing import Any
 
-from .base import Provider, Case, ProviderError
+from .base import Provider, Case, ProviderError, image_to_data_uri
 
 _STATUS_MAP = {
     "IN_QUEUE": "pending", "IN_PROGRESS": "running",
     "COMPLETED": "succeeded", "FAILED": "failed", "ERROR": "failed",
 }
-
-
-def image_to_data_uri(path: str) -> str:
-    """Base64-encode a local image as a data URI.
-
-    Most fal image-to-3D endpoints accept a data URI in the ``image_url`` field,
-    which lets us feed a locally-generated *shared reference image* without a
-    separate upload round-trip — keeping the input identical across every
-    image-to-3D model in the cohort.
-    """
-    mime, _ = mimetypes.guess_type(path)
-    mime = mime or "image/png"
-    with open(path, "rb") as fh:
-        b64 = base64.b64encode(fh.read()).decode("ascii")
-    return f"data:{mime};base64,{b64}"
 
 
 class FalProvider(Provider):
