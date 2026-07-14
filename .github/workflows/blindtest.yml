@@ -99,6 +99,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: blindtest-results
-          path: results/
+          path: |
+            results/
+            cases/refs/
           if-no-files-found: warn
           retention-days: 14

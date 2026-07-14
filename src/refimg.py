@@ -36,11 +36,17 @@ class RefImageProvider(FalProvider):
     out_format = "png"
 
     def _payload(self, case: Case) -> dict[str, Any]:
+        from .config import stable_seed
         return {
             "prompt": case.prompt + _REF_SUFFIX,
             "image_size": self.config.get("image_size", "square_hd"),
             "num_images": 1,
             "enable_safety_checker": False,
+            # Deterministic per-case seed: FLUX returns the same image for the
+            # same (seed, prompt, model), so reference images are reproducible
+            # across runs — a provider added LATER (e.g. seed3d) consumes
+            # pixel-identical inputs and stays strictly comparable.
+            "seed": stable_seed(f"refimg:{case.id}"),
             **self._extra_params(),
         }
 

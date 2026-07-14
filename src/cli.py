@@ -109,7 +109,8 @@ def cmd_generate(cfg: RunConfig, cases: list[Case], only: list[str] | None) -> N
         print(f"  [{pkey}] {case.id}: {status}")
         return {
             "provider": res.provider, "case_id": res.case_id, "ok": res.ok,
-            "mesh_path": res.mesh_path, "task_id": res.task_id,
+            "mesh_path": res.mesh_path, "mesh_url": res.mesh_url,
+            "task_id": res.task_id,
             "latency_s": res.latency_s, "error": res.error,
         }
 

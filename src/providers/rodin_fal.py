@@ -4,8 +4,9 @@ Alternative to the direct Deemos API (`rodin` provider, RODIN_API_KEY): fal
 hosts Rodin at `fal-ai/hyper3d/rodin` with versioned subpaths — we default to
 the newest, `fal-ai/hyper3d/rodin/v2.5`. Uses the shared FAL_KEY, ~$0.4/gen.
 
-Schema quirks vs the other fal models (confirmed on the fal model page):
-  * image input is ``input_image_urls`` — an ARRAY of urls/data-URIs
+Schema quirks vs the other fal models (confirmed by the live 422 validation
+error from Rodin Gen-2.5 itself: ``loc: ["body","image_urls"]``):
+  * image input is ``image_urls`` — an ARRAY of urls/data-URIs
   * knobs: geometry_file_format (glb), material (PBR), quality
 Output GLB at ``model_mesh.url`` (handled by the base asset_url).
 """
@@ -27,7 +28,7 @@ class RodinFalProvider(FalProvider):
             raise ProviderError(
                 "rodin_fal is image-to-3D — run in image mode (`--mode image`)")
         return {
-            "input_image_urls": [self._image_ref(case)],  # array, not a string
+            "image_urls": [self._image_ref(case)],  # array, not a string
             "geometry_file_format": self.config.get("geometry_file_format", "glb"),
             "material": self.config.get("material", "PBR"),
             "quality": self.config.get("quality", "medium"),

@@ -33,7 +33,9 @@ providers:
   trellis:       {model_id: "fal-ai/trellis"}
   trellis2:      {model_id: "fal-ai/trellis-2", params: {decimation_target: 30000}}
   triposr:       {model_id: "fal-ai/triposr", params: {mc_resolution: 256}}
-  instantmesh:   {model_id: "fal-ai/instant-mesh"}
+  # instantmesh disabled: fal returns 404 "Application instant-mesh not found" —
+  # the endpoint no longer exists on fal (third-party references were stale).
+  # instantmesh: {model_id: "fal-ai/instant-mesh"}
 
 # Where generated meshes, metrics, and reports are written.
 out_dir: results

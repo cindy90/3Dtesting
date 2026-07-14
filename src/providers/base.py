@@ -64,6 +64,7 @@ class GenResult:
     case_id: str
     ok: bool
     mesh_path: str | None = None
+    mesh_url: str | None = None      # remote asset URL (debugging / provenance)
     task_id: str | None = None
     latency_s: float | None = None
     error: str | None = None
@@ -161,6 +162,18 @@ class Provider:
             for chunk in resp.iter_content(chunk_size=1 << 16):
                 if chunk:
                     fh.write(chunk)
+        # sanity-check the bytes: a wrong output-field pick downloads an error
+        # page / JSON with a .glb name, which then dies far away in analysis
+        # ("incorrect header on GLB file") with no clue. Fail HERE with a
+        # snippet instead.
+        if dest.lower().endswith(".glb"):
+            with open(dest, "rb") as fh:
+                head = fh.read(96)
+            if not head.startswith(b"glTF"):
+                snippet = head.decode("utf-8", "replace")
+                raise ProviderError(
+                    f"downloaded file is not GLB (magic missing). "
+                    f"url={url[:120]} first bytes: {snippet!r}")
         return dest
 
     def run(self, case: Case, out_dir: str) -> GenResult:
@@ -193,10 +206,11 @@ class Provider:
                     path = self.download(url, dest)
                 except Exception as exc:  # noqa: BLE001
                     return GenResult(self.name, case.id, ok=False, task_id=task_id,
+                                     mesh_url=url,
                                      error=f"download failed: {exc}", raw=raw)
                 return GenResult(self.name, case.id, ok=True, mesh_path=path,
-                                 task_id=task_id, latency_s=time.monotonic() - start,
-                                 raw=raw)
+                                 mesh_url=url, task_id=task_id,
+                                 latency_s=time.monotonic() - start, raw=raw)
             if state == "failed":
                 return GenResult(self.name, case.id, ok=False, task_id=task_id,
                                  error="generation failed", raw=raw)
