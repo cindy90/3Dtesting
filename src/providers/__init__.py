@@ -14,12 +14,14 @@ from .trellis import TrellisProvider
 from .trellis2 import Trellis2Provider
 from .triposr import TripoSRProvider
 from .instantmesh import InstantMeshProvider
+from .seed3d import Seed3DProvider
 
 REGISTRY: dict[str, type[Provider]] = {
     # commercial APIs
     "tripo": TripoProvider,
     "meshy": MeshyProvider,
-    "rodin": RodinProvider,
+    "rodin": RodinProvider,       # 影眸/Deemos Rodin (needs RODIN_API_KEY)
+    "seed3d": Seed3DProvider,     # ByteDance via Volcengine Ark (needs ARK_API_KEY)
     # open-source cohort (image-to-3D, via fal.ai)
     "hunyuan3d": Hunyuan3DProvider,
     "hunyuan3d_v21": Hunyuan3Dv21Provider,

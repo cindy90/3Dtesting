@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       providers:
-        description: "Providers (subset of: tripo meshy rodin hunyuan3d hunyuan3d_v21 trellis trellis2 triposr instantmesh)"
+        description: "Providers (subset of: tripo meshy rodin seed3d hunyuan3d hunyuan3d_v21 trellis trellis2 triposr instantmesh)"
         required: true
         default: "tripo"
       mode:
@@ -63,6 +63,7 @@ jobs:
           TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
           MESHY_API_KEY: ${{ secrets.MESHY_API_KEY }}
           RODIN_API_KEY: ${{ secrets.RODIN_API_KEY }}
+          ARK_API_KEY: ${{ secrets.ARK_API_KEY }}
           FAL_KEY: ${{ secrets.FAL_KEY }}
         run: |
           python -m src.cli generate \

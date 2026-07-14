@@ -23,7 +23,8 @@ providers:
   # --- commercial APIs ---
   tripo:     {model_version: "v2.5-20250123", texture: true, pbr: true}
   meshy:     {ai_model: "meshy-6", target_polycount: 30000}
-  rodin:     {tier: "Regular", mesh_mode: "Quad", quality: "high"}
+  rodin:     {tier: "Regular", mesh_mode: "Quad", quality: "high"}   # 影眸/Deemos
+  seed3d:    {model_id: "doubao-seed3d-1-0-250928", options: "--fileformat glb"}  # 字节/火山方舟
   # --- open-source cohort (fal.ai, image-to-3D) ---
   hunyuan3d:     {model_id: "fal-ai/hunyuan3d/v2"}
   hunyuan3d_v21: {model_id: "fal-ai/hunyuan3d-v21"}
