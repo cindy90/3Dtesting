@@ -21,6 +21,37 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+def find_mesh_url(obj: Any) -> str | None:
+    """Depth-first scan of a result payload for the first mesh-file URL.
+
+    Output schemas differ per model/version (model_mesh.url, model_glb.url,
+    obj/glb lists, nested "output" wrappers …). This is the shared last-resort
+    parser: any http(s) URL whose path ends in a mesh extension wins.
+    """
+    if isinstance(obj, str):
+        low = obj.split("?")[0].lower()
+        if obj.startswith("http") and low.endswith(
+                (".glb", ".gltf", ".obj", ".fbx", ".usdz", ".usd", ".stl")):
+            return obj
+        return None
+    if isinstance(obj, dict):
+        for key in ("model_mesh", "model_glb", "file_url", "model_url", "url", "glb"):
+            if key in obj:
+                found = find_mesh_url(obj[key])
+                if found:
+                    return found
+        for val in obj.values():
+            found = find_mesh_url(val)
+            if found:
+                return found
+    if isinstance(obj, list):
+        for val in obj:
+            found = find_mesh_url(val)
+            if found:
+                return found
+    return None
+
+
 def image_to_data_uri(path: str) -> str:
     """Base64-encode a local image as a ``data:`` URI.
 

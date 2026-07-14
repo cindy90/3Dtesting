@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from .base import Provider, Case, ProviderError, image_to_data_uri
+from .base import Provider, Case, ProviderError, image_to_data_uri, find_mesh_url
 
 _STATUS_MAP = {
     "IN_QUEUE": "pending", "IN_PROGRESS": "running",
@@ -168,4 +168,6 @@ class FalProvider(Provider):
             val = out.get(key)
             if isinstance(val, dict) and val.get("url"):
                 return val["url"]
-        return None
+        # last resort: schema drift across model versions — deep-scan for any
+        # mesh-file URL anywhere in the payload.
+        return find_mesh_url(raw)

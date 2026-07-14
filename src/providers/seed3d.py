@@ -30,7 +30,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .base import Provider, Case, ProviderError, image_to_data_uri
+from .base import Provider, Case, ProviderError, image_to_data_uri, find_mesh_url
 
 _BASE = "https://ark.cn-beijing.volces.com"
 _TASKS_PATH = "/api/v3/contents/generations/tasks"
@@ -42,32 +42,6 @@ _STATUS_MAP = {
     "failed": "failed", "cancelled": "failed", "canceled": "failed",
     "expired": "failed",
 }
-
-
-def _find_glb_url(obj: Any) -> str | None:
-    """Depth-first scan for the first http(s) URL that looks like a mesh file."""
-    if isinstance(obj, str):
-        low = obj.split("?")[0].lower()
-        if obj.startswith("http") and low.endswith((".glb", ".obj", ".usdz", ".usd")):
-            return obj
-        return None
-    if isinstance(obj, dict):
-        # prefer explicit file-ish keys first for determinism
-        for key in ("file_url", "model_url", "url", "glb_url"):
-            if key in obj:
-                found = _find_glb_url(obj[key])
-                if found:
-                    return found
-        for val in obj.values():
-            found = _find_glb_url(val)
-            if found:
-                return found
-    if isinstance(obj, list):
-        for val in obj:
-            found = _find_glb_url(val)
-            if found:
-                return found
-    return None
 
 
 class Seed3DProvider(Provider):
@@ -119,4 +93,4 @@ class Seed3DProvider(Provider):
         return _STATUS_MAP.get(raw_status, "running"), data
 
     def asset_url(self, raw: dict[str, Any]) -> str | None:
-        return _find_glb_url(raw)
+        return find_mesh_url(raw)

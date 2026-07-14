@@ -24,6 +24,8 @@ providers:
   tripo:     {model_version: "v2.5-20250123", texture: true, pbr: true}
   meshy:     {ai_model: "meshy-6", target_polycount: 30000}
   rodin:     {tier: "Regular", mesh_mode: "Quad", quality: "high"}   # 影眸/Deemos
+  # Seed3D: 2.0 已上线方舟(视觉大模型->3D生成->Doubao-Seed3D-2.0),但确切
+  # 模型ID需从方舟控制台复制后替换下面的值;1.0 的 ID 已核实可用作回退。
   seed3d:    {model_id: "doubao-seed3d-1-0-250928", options: "--fileformat glb"}  # 字节/火山方舟
   # --- hosted-on-fal commercial (shares FAL_KEY) ---
   rodin_fal: {model_id: "fal-ai/hyper3d/rodin/v2.5", quality: "medium", material: "PBR"}  # ~$0.4/gen
@@ -32,6 +34,7 @@ providers:
   # --- open-source cohort (fal.ai, image-to-3D) ---
   hunyuan3d:     {model_id: "fal-ai/hunyuan3d/v2"}
   hunyuan3d_v21: {model_id: "fal-ai/hunyuan3d-v21"}
+  hunyuan3d_v31: {model_id: "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d"}  # 腾讯最新旗舰 $0.375/gen
   trellis:       {model_id: "fal-ai/trellis"}
   trellis2:      {model_id: "fal-ai/trellis-2", params: {decimation_target: 30000}}
   triposr:       {model_id: "fal-ai/triposr", params: {mc_resolution: 256}}
