@@ -23,6 +23,7 @@ REGISTRY: dict[str, type[Provider]] = {
     # commercial APIs
     "tripo": TripoProvider,
     "tripo_h31": TripoProvider,   # same direct API, H3.1 model_version (config)
+    "tripo_p1d": TripoProvider,   # direct API, P1 model_version (config)
     "meshy": MeshyProvider,
     "rodin": RodinProvider,       # 影眸/Deemos Rodin (needs RODIN_API_KEY)
     "seed3d": Seed3DProvider,     # ByteDance via Volcengine Ark (needs ARK_API_KEY)
