@@ -196,16 +196,36 @@ class Provider:
         # sanity-check the bytes: a wrong output-field pick downloads an error
         # page / JSON with a .glb name, which then dies far away in analysis
         # ("incorrect header on GLB file") with no clue. Fail HERE with a
-        # snippet instead.
+        # snippet instead. Some models (e.g. Hunyuan v2.1 on fal) legitimately
+        # ship a ZIP archive containing the mesh + textures — extract those.
         if dest.lower().endswith(".glb"):
             with open(dest, "rb") as fh:
                 head = fh.read(96)
+            if head.startswith(b"PK\x03\x04"):
+                return self._extract_mesh_from_zip(dest)
             if not head.startswith(b"glTF"):
                 snippet = head.decode("utf-8", "replace")
                 raise ProviderError(
                     f"downloaded file is not GLB (magic missing). "
                     f"url={url[:120]} first bytes: {snippet!r}")
         return dest
+
+    @staticmethod
+    def _extract_mesh_from_zip(dest: str) -> str:
+        """The 'glb' turned out to be a ZIP — extract the mesh (+ sidecars)."""
+        import zipfile
+        zpath = dest + ".zip"
+        os.replace(dest, zpath)
+        out_dir = dest + "_files"
+        with zipfile.ZipFile(zpath) as zf:
+            zf.extractall(out_dir)  # keep mtl/textures next to the mesh
+            names = zf.namelist()
+        for ext in (".glb", ".gltf", ".obj", ".fbx", ".stl"):
+            for n in names:
+                if n.lower().endswith(ext):
+                    return os.path.join(out_dir, n)
+        raise ProviderError(
+            f"zip archive contains no mesh file (entries: {names[:8]})")
 
     def run(self, case: Case, out_dir: str) -> GenResult:
         """Full lifecycle for one case: submit -> poll -> download."""

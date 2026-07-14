@@ -42,6 +42,9 @@ class RefImageProvider(FalProvider):
             "image_size": self.config.get("image_size", "square_hd"),
             "num_images": 1,
             "enable_safety_checker": False,
+            # FLUX defaults to JPEG bytes; we save as .png, so request PNG for
+            # honest mime (a data-URI with lying mime tripped one endpoint).
+            "output_format": "png",
             # Deterministic per-case seed: FLUX returns the same image for the
             # same (seed, prompt, model), so reference images are reproducible
             # across runs — a provider added LATER (e.g. seed3d) consumes

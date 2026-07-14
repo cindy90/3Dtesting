@@ -40,7 +40,9 @@ providers:
   seed3d:    {model_id: "doubao-seed3d-2-0-260328", options: "--fileformat glb"}
   # --- hosted-on-fal commercial (shares FAL_KEY) ---
   rodin_fal: {model_id: "fal-ai/hyper3d/rodin/v2.5", quality: "medium", material: "PBR"}  # ~$0.4/gen
-  tripo_fal: {model_id: "tripo3d/tripo/v2.5/image-to-3d"}   # ~$0.2/gen untextured
+  # tripo_fal disabled: fal's tripo v2.5 endpoint downloads image_url server-side
+  # and rejects data URIs (422 file_download_error). Tripo runs first-party now.
+  # tripo_fal: {model_id: "tripo3d/tripo/v2.5/image-to-3d"}
   tripo_p1:  {model_id: "tripo3d/p1/image-to-3d"}           # P1.0 Smart Mesh (GDC 2026)
   # --- open-source cohort (fal.ai, image-to-3D) ---
   hunyuan3d:     {model_id: "fal-ai/hunyuan3d/v2"}

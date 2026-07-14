@@ -145,11 +145,21 @@ class MeshMetrics:
 
 
 def _load_scene(path: str) -> trimesh.Trimesh:
-    """Load a mesh file and concatenate everything into a single Trimesh.
+    """Load a mesh file, concatenate to one Trimesh, and WELD vertices.
 
     Generators emit glb/obj/ply; a scene may hold several primitives. We keep a
     count of the original sub-mesh number (fragmentation signal) but analyse the
     concatenated geometry so watertightness is judged on the whole asset.
+
+    Welding matters for fairness: textured GLBs legitimately split vertices
+    along UV seams and hard normals, so on raw buffers every seam edge counts
+    as "open" — a textured but geometrically closed mesh would be scored
+    non-watertight while an untextured one sails through (we caught a mesh
+    whose raw data showed 312k boundary edges on 500k faces — impossible as
+    real holes). Any production pipeline welds by position before closure
+    checks, so we do the same: merge vertices by position (ignoring UV/normal
+    splits) and analyse the welded geometry. The raw pre-weld boundary-edge
+    count is preserved in ``metadata['_raw_boundary_edges']`` for reference.
     """
     loaded = trimesh.load(path, force="scene", process=False)
     if isinstance(loaded, trimesh.Scene):
@@ -164,7 +174,20 @@ def _load_scene(path: str) -> trimesh.Trimesh:
         mesh = loaded
     if not isinstance(mesh, trimesh.Trimesh) or mesh.faces.shape[0] == 0:
         raise ValueError("no triangle faces after load")
+
+    # raw (pre-weld) open-edge count, for the record
+    _, counts = np.unique(mesh.edges_sorted, axis=0, return_counts=True)
+    raw_boundary = int(np.count_nonzero(counts == 1))
+
+    # weld by position only: merge vertices that were split for UVs/normals
+    try:
+        mesh.merge_vertices(merge_tex=True, merge_norm=True)
+    except TypeError:  # older trimesh without the kwargs
+        mesh.merge_vertices()
+    mesh.remove_unreferenced_vertices()
+
     mesh.metadata["_n_sub"] = n_sub
+    mesh.metadata["_raw_boundary_edges"] = raw_boundary
     return mesh
 
 
@@ -258,6 +281,7 @@ def analyze_mesh(path: str, *, expect_symmetry: bool = False) -> MeshMetrics:
 
     m.ok = True
     m.n_meshes_in_scene = int(mesh.metadata.get("_n_sub", 1))
+    m.extra["raw_boundary_edges"] = int(mesh.metadata.get("_raw_boundary_edges", 0))
     m.n_vertices = int(len(mesh.vertices))
     m.n_faces = int(len(mesh.faces))
 
