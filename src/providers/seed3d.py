@@ -93,4 +93,28 @@ class Seed3DProvider(Provider):
         return _STATUS_MAP.get(raw_status, "running"), data
 
     def asset_url(self, raw: dict[str, Any]) -> str | None:
-        return find_mesh_url(raw)
+        found = find_mesh_url(raw)
+        if found:
+            return found
+        # Ark hands back presigned TOS URLs that may carry no file extension —
+        # run 12 generated (and billed) successfully but the extension-based
+        # deep scan missed the URL. Fall back to the first http(s) URL under a
+        # file-ish key, then to any http(s) URL in the payload.
+        def _any_url(obj: Any, keyed: bool) -> str | None:
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if isinstance(v, str) and v.startswith("http") and (
+                            not keyed or any(t in k.lower() for t in
+                                             ("file", "url", "model", "result"))):
+                        return v
+                for v in obj.values():
+                    got = _any_url(v, keyed)
+                    if got:
+                        return got
+            if isinstance(obj, list):
+                for v in obj:
+                    got = _any_url(v, keyed)
+                    if got:
+                        return got
+            return None
+        return _any_url(raw, keyed=True) or _any_url(raw, keyed=False)
