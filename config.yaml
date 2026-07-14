@@ -24,9 +24,9 @@ providers:
   tripo:     {model_version: "v2.5-20250123", texture: true, pbr: true}
   meshy:     {ai_model: "meshy-6", target_polycount: 30000}
   rodin:     {tier: "Regular", mesh_mode: "Quad", quality: "high"}   # 影眸/Deemos
-  # Seed3D: 2.0 已上线方舟(视觉大模型->3D生成->Doubao-Seed3D-2.0),但确切
-  # 模型ID需从方舟控制台复制后替换下面的值;1.0 的 ID 已核实可用作回退。
-  seed3d:    {model_id: "doubao-seed3d-1-0-250928", options: "--fileformat glb"}  # 字节/火山方舟
+  # Seed3D 2.0 (字节/火山方舟) — 模型ID由用户从方舟控制台确认;
+  # 1.0 回退: doubao-seed3d-1-0-250928
+  seed3d:    {model_id: "doubao-seed3d-2-0-260328", options: "--fileformat glb"}
   # --- hosted-on-fal commercial (shares FAL_KEY) ---
   rodin_fal: {model_id: "fal-ai/hyper3d/rodin/v2.5", quality: "medium", material: "PBR"}  # ~$0.4/gen
   tripo_fal: {model_id: "tripo3d/tripo/v2.5/image-to-3d"}   # ~$0.2/gen untextured
