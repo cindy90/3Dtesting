@@ -44,6 +44,16 @@ class TripoProvider(Provider):
             raise ProviderError(f"tripo upload returned no token: {data}")
         return token
 
+    def _submit_once(self, payload: dict[str, Any]) -> str:
+        resp = self._request("POST", f"{_BASE}/task",
+                             headers={**self._headers(), "Content-Type": "application/json"},
+                             json=payload)
+        body = resp.json()
+        task_id = (body.get("data") or {}).get("task_id")
+        if not task_id:
+            raise ProviderError(f"tripo submit: no task_id in {body}")
+        return task_id
+
     def submit(self, case: Case) -> str:
         if case.mode == "image":
             if not case.image_path:
@@ -57,18 +67,26 @@ class TripoProvider(Provider):
             }
         else:
             payload = {"type": "text_to_model", "prompt": case.prompt}
-        payload["model_version"] = self._model_version()
-        # ask for a clean, textured, quad-friendly asset where supported
+        # ask for a textured asset where supported (P1 ignores extra options)
         payload.setdefault("texture", True)
         payload.setdefault("pbr", True)
-        resp = self._request("POST", f"{_BASE}/task",
-                             headers={**self._headers(), "Content-Type": "application/json"},
-                             json=payload)
-        body = resp.json()
-        task_id = (body.get("data") or {}).get("task_id")
-        if not task_id:
-            raise ProviderError(f"tripo submit: no task_id in {body}")
-        return task_id
+        # model_version self-heal: the exact dated string for a new family
+        # (e.g. H3.1) isn't always documented; an unknown version fails at
+        # submit without charging, so we can safely try candidates in order.
+        versions = [self._model_version()] + list(
+            self.config.get("model_version_candidates", []) or [])
+        last: ProviderError | None = None
+        for ver in versions:
+            payload["model_version"] = ver
+            try:
+                return self._submit_once(payload)
+            except ProviderError as exc:
+                msg = str(exc).lower()
+                if any(t in msg for t in ("version", "param", "invalid", "2002")):
+                    last = exc
+                    continue  # likely a wrong model_version string — try next
+                raise  # credit/auth/network — a different problem, surface it
+        raise last or ProviderError("tripo: no usable model_version")
 
     def status(self, task_id: str) -> tuple[str, dict[str, Any]]:
         resp = self._request("GET", f"{_BASE}/task/{task_id}", headers=self._headers())

@@ -26,8 +26,12 @@ providers:
   # P1-20260311. For H3.1 paste the exact string from the docs' model list.
   # Needs TRIPO_API_KEY credit (fal hosts only v2.5 + P1).
   tripo:     {model_version: "v3.0-20250812", texture: true, pbr: true}
-  # tripo_h31 (direct API, same provider): copy exact H3.1 model_version, e.g.
-  # tripo_h31 config would be {model_version: "<H3.1-string-from-docs>"}
+  # H3.1 (官方最新高保真; 图生3D仅 20-30 credits)。确切 model_version 串未公开,
+  # submit 对无效版本串直接失败且不扣费,故用候选列表自愈,命中即用。
+  tripo_h31:
+    model_version: "H3.1-20260326"
+    model_version_candidates: ["h3.1", "H3.1", "Tripo-H3.1", "v3.1-20260326", "h3.1-20260326"]
+    texture: true
   meshy:     {ai_model: "meshy-6", target_polycount: 30000}
   rodin:     {tier: "Regular", mesh_mode: "Quad", quality: "high"}   # 影眸/Deemos
   # Seed3D 2.0 (字节/火山方舟) — 模型ID由用户从方舟控制台确认;

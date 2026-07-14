@@ -22,6 +22,7 @@ from .tripo_fal import TripoFalProvider, TripoP1Provider
 REGISTRY: dict[str, type[Provider]] = {
     # commercial APIs
     "tripo": TripoProvider,
+    "tripo_h31": TripoProvider,   # same direct API, H3.1 model_version (config)
     "meshy": MeshyProvider,
     "rodin": RodinProvider,       # 影眸/Deemos Rodin (needs RODIN_API_KEY)
     "seed3d": Seed3DProvider,     # ByteDance via Volcengine Ark (needs ARK_API_KEY)
@@ -43,7 +44,12 @@ REGISTRY: dict[str, type[Provider]] = {
 def build_provider(key: str, config: dict[str, Any] | None = None) -> Provider:
     if key not in REGISTRY:
         raise KeyError(f"unknown provider '{key}'. known: {sorted(REGISTRY)}")
-    return REGISTRY[key](config or {})
+    prov = REGISTRY[key](config or {})
+    # label results by the registry key, so two entries sharing a provider
+    # class (e.g. tripo vs tripo_h31, same API different model_version) stay
+    # distinct models in every report.
+    prov.name = key
+    return prov
 
 
 __all__ = [
