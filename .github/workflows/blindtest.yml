@@ -77,7 +77,8 @@ jobs:
       - name: Semantic gallery (+ VLM judge when ARK_VLM_MODEL is set)
         env:
           ARK_API_KEY: ${{ secrets.ARK_API_KEY }}
-          ARK_VLM_MODEL: ${{ vars.ARK_VLM_MODEL }}
+          # accept the model id from either a repo Variable or a Secret
+          ARK_VLM_MODEL: ${{ vars.ARK_VLM_MODEL || secrets.ARK_VLM_MODEL }}
         run: python -m src.cli semantic
 
       - name: Blind set + report
