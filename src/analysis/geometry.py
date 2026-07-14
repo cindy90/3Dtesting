@@ -163,15 +163,23 @@ def _load_scene(path: str) -> trimesh.Trimesh:
     """
     loaded = trimesh.load(path, force="scene", process=False)
     if isinstance(loaded, trimesh.Scene):
+        geoms = [g for g in loaded.geometry.values() if isinstance(g, trimesh.Trimesh)]
         n_sub = len(loaded.geometry)
-        if n_sub == 0:
+        if n_sub == 0 or not geoms:
             raise ValueError("scene contains no geometry")
-        mesh = trimesh.util.concatenate(
-            [g for g in loaded.geometry.values() if isinstance(g, trimesh.Trimesh)]
-        )
+        mesh = trimesh.util.concatenate(geoms)
     else:
         n_sub = 1
+        geoms = [loaded]
         mesh = loaded
+
+    # UV presence must be read from the RAW sub-meshes: concatenation and the
+    # position-weld below both drop TextureVisuals, so checking afterwards
+    # reported has_uv=False for every model.
+    def _g_has_uv(g):
+        uv = getattr(getattr(g, "visual", None), "uv", None)
+        return uv is not None and len(uv) > 0
+    raw_has_uv = any(_g_has_uv(g) for g in geoms)
     if not isinstance(mesh, trimesh.Trimesh) or mesh.faces.shape[0] == 0:
         raise ValueError("no triangle faces after load")
 
@@ -188,6 +196,7 @@ def _load_scene(path: str) -> trimesh.Trimesh:
 
     mesh.metadata["_n_sub"] = n_sub
     mesh.metadata["_raw_boundary_edges"] = raw_boundary
+    mesh.metadata["_raw_has_uv"] = raw_has_uv
     return mesh
 
 
@@ -345,11 +354,7 @@ def analyze_mesh(path: str, *, expect_symmetry: bool = False) -> MeshMetrics:
         m.extra["internal_faces"] = "not_measured"
 
     # --- asset completeness ---
-    try:
-        m.has_uv = bool(getattr(mesh.visual, "uv", None) is not None
-                        and len(getattr(mesh.visual, "uv", []) or []) > 0)
-    except Exception:
-        m.has_uv = False
+    m.has_uv = bool(mesh.metadata.get("_raw_has_uv", False))
     m.has_vertex_normals = bool(mesh.vertex_normals is not None
                                 and len(mesh.vertex_normals) == len(mesh.vertices))
     try:
