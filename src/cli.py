@@ -102,7 +102,9 @@ def cmd_generate(cfg: RunConfig, cases: list[Case], only: list[str] | None) -> N
 
     def _one(pkey: str, case: Case) -> dict[str, Any]:
         prov = build_provider(pkey, cfg.providers[pkey])
-        prov.timeout_s = cfg.timeout_s
+        # per-provider timeout override (e.g. seed3d regularly exceeds 900s)
+        prov.timeout_s = float((cfg.providers[pkey] or {}).get("timeout_s",
+                                                               cfg.timeout_s))
         prov.poll_interval_s = cfg.poll_interval_s
         res = prov.run(case, cfg.out_dir)
         status = "ok" if res.ok else f"FAIL({res.error})"
