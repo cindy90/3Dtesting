@@ -10,6 +10,7 @@ Auth is ``Authorization: Bearer <TRIPO_API_KEY>``.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from .base import Provider, Case, ProviderError
@@ -48,9 +49,11 @@ class TripoProvider(Provider):
             if not case.image_path:
                 raise ProviderError("image mode requires image_path")
             token = self._upload_image(case.image_path)
+            # file type must match the uploaded bytes (our shared refs are PNG)
+            ext = os.path.splitext(case.image_path)[1].lstrip(".").lower() or "png"
             payload: dict[str, Any] = {
                 "type": "image_to_model",
-                "file": {"type": "jpg", "file_token": token},
+                "file": {"type": {"jpeg": "jpg"}.get(ext, ext), "file_token": token},
             }
         else:
             payload = {"type": "text_to_model", "prompt": case.prompt}
