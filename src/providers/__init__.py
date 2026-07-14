@@ -16,6 +16,7 @@ from .triposr import TripoSRProvider
 from .instantmesh import InstantMeshProvider
 from .seed3d import Seed3DProvider
 from .rodin_fal import RodinFalProvider
+from .tripo_fal import TripoFalProvider, TripoP1Provider
 
 REGISTRY: dict[str, type[Provider]] = {
     # commercial APIs
@@ -25,6 +26,8 @@ REGISTRY: dict[str, type[Provider]] = {
     "seed3d": Seed3DProvider,     # ByteDance via Volcengine Ark (needs ARK_API_KEY)
     # hosted-on-fal commercial (uses FAL_KEY, no separate account)
     "rodin_fal": RodinFalProvider,
+    "tripo_fal": TripoFalProvider,   # Tripo v2.5 via fal
+    "tripo_p1": TripoP1Provider,     # Tripo P1.0 Smart Mesh via fal
     # open-source cohort (image-to-3D, via fal.ai)
     "hunyuan3d": Hunyuan3DProvider,
     "hunyuan3d_v21": Hunyuan3Dv21Provider,

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       providers:
-        description: "Providers (subset of: tripo meshy rodin rodin_fal seed3d hunyuan3d hunyuan3d_v21 trellis trellis2 triposr instantmesh)"
+        description: "Providers (subset of: tripo tripo_fal tripo_p1 meshy rodin rodin_fal seed3d hunyuan3d hunyuan3d_v21 trellis trellis2 triposr instantmesh)"
         required: true
         default: "tripo"
       mode:
