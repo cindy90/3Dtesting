@@ -72,9 +72,21 @@ class FalProvider(Provider):
         return {self.text_field: case.prompt, **self._extra_params()}
 
     def _post(self, payload: dict[str, Any]) -> str:
-        resp = self._request("POST", self._endpoint(),
-                             headers={**self._headers(), "Content-Type": "application/json"},
-                             json=payload)
+        headers = {**self._headers(), "Content-Type": "application/json"}
+        url = self._endpoint()
+        # Manually follow redirects PRESERVING POST. requests' default would
+        # downgrade a 301/302 POST to GET, and fal's submit endpoint answers GET
+        # with 405 — which is exactly the failure we hit. 307/308 already
+        # preserve method but we handle them here uniformly.
+        resp = self._request("POST", url, headers=headers, json=payload,
+                             allow_redirects=False)
+        hops = 0
+        while resp.status_code in (301, 302, 303, 307, 308) \
+                and resp.headers.get("Location") and hops < 4:
+            url = resp.headers["Location"]
+            resp = self._request("POST", url, headers=headers, json=payload,
+                                 allow_redirects=False)
+            hops += 1
         rid = resp.json().get("request_id")
         if not rid:
             raise ProviderError(f"{self.name} submit: no request_id in {resp.text[:200]}")

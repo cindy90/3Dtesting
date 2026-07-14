@@ -139,7 +139,11 @@ class Provider:
                         f"(often: account out of credit/billing). "
                         f"Server said: {resp.text[:250]}")
                 if 400 <= sc < 500 and sc != 429:
-                    raise ProviderError(f"client error {sc}: {resp.text[:300]}")
+                    hint = ""
+                    if sc == 405:  # method not allowed — usually a redirect ate the POST
+                        hint = (f" [Allow={resp.headers.get('Allow','?')}, "
+                                f"Location={resp.headers.get('Location','none')}]")
+                    raise ProviderError(f"client error {sc}: {resp.text[:250]}{hint}")
                 if sc in (429, 500, 502, 503, 504):
                     last = ProviderError(f"transient {sc}: {resp.text[:200]}")
                 else:

@@ -68,6 +68,11 @@ def cmd_refimg(cfg: RunConfig, cases: list[Case], force: bool) -> None:
     made = generate_reference_images(cases, cfg.refs_dir, cfg.reference_images,
                                      force=force)
     print(f"reference images: {len(made)}/{len(cases)} ready in {cfg.refs_dir}")
+    if cases and not made:
+        # fail loudly: image-mode generate is pointless without refs, and a
+        # silent 0/N here previously surfaced as confusing downstream errors.
+        raise SystemExit("refimg produced 0 images — fix this before generate "
+                         "(check FAL_KEY and the FLUX endpoint above)")
 
 
 def _apply_image_mode(cfg: RunConfig, cases: list[Case]) -> list[Case]:
