@@ -45,6 +45,8 @@ jobs:
           # on dense meshes. Non-fatal: analysis falls back to pure-python + a
           # time-box if the wheel isn't available for the runner.
           pip install embreex || echo "embreex unavailable; using pure-python ray backend"
+          # Blender headless module for the rig smoke test (non-fatal; ~300MB, pip-cached)
+          pip install bpy || echo "bpy unavailable; rig smoke test will be skipped"
 
       - name: Self-test (no keys, proves the analysis pipeline before spending)
         run: python -m src.selftest
@@ -80,6 +82,9 @@ jobs:
           # accept the model id from either a repo Variable or a Secret
           ARK_VLM_MODEL: ${{ vars.ARK_VLM_MODEL || secrets.ARK_VLM_MODEL }}
         run: python -m src.cli semantic
+
+      - name: Rig smoke test (Blender bind + bend)
+        run: python -m src.cli rig
 
       - name: Blind set + report
         run: |

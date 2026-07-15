@@ -188,6 +188,48 @@ def cmd_semantic(cfg: RunConfig) -> None:
               "config semantic.vlm_model) — human scoresheet only")
 
 
+def cmd_rig(cfg: RunConfig) -> None:
+    """Blender rig smoke test: bind + 45° bend on every generated mesh.
+
+    Each mesh runs in a fresh subprocess (bpy state is global; this gives
+    clean state, a hard per-mesh timeout, and crash isolation). Skips
+    gracefully when bpy isn't installed.
+    """
+    import subprocess, sys as _sys
+    try:
+        import bpy  # noqa: F401
+    except Exception:
+        print("rig: bpy not installed (pip install bpy) — skipping smoke test")
+        return
+    gen_path = os.path.join(cfg.out_dir, "generation.json")
+    if not os.path.exists(gen_path):
+        raise SystemExit("run `generate` first (no generation.json)")
+    with open(gen_path) as fh:
+        gen = json.load(fh)
+    results = []
+    for r in gen:
+        if not (r.get("ok") and r.get("mesh_path") and os.path.exists(r["mesh_path"])):
+            continue
+        try:
+            proc = subprocess.run(
+                [_sys.executable, "-m", "src.eval.rig_probe", r["mesh_path"]],
+                capture_output=True, text=True, timeout=300)
+            line = (proc.stdout or "").strip().splitlines()
+            data = json.loads(line[-1]) if line else {"error": "no output"}
+        except subprocess.TimeoutExpired:
+            data = {"bind_ok": False, "rig_smoke_score": 0.0, "error": "timeout 300s"}
+        except Exception as exc:  # noqa: BLE001
+            data = {"bind_ok": False, "rig_smoke_score": 0.0,
+                    "error": f"{type(exc).__name__}: {exc}"}
+        data.update({"provider": r["provider"], "case_id": r["case_id"]})
+        results.append(data)
+        print(f"  [rig] {r['provider']}/{r['case_id']}: "
+              f"score={data.get('rig_smoke_score')} bind={data.get('bind_ok')} "
+              f"{('ERR ' + str(data['error'])) if data.get('error') else ''}")
+    _write_json(os.path.join(cfg.out_dir, "rig_scores.json"), results)
+    print(f"rig smoke: {len(results)} meshes -> {cfg.out_dir}/rig_scores.json")
+
+
 def cmd_blind(cfg: RunConfig) -> None:
     gen_path = os.path.join(cfg.out_dir, "generation.json")
     with open(gen_path) as fh:
@@ -206,7 +248,7 @@ def cmd_report(cfg: RunConfig) -> None:
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="blind3d")
     ap.add_argument("command",
-                    choices=["refimg", "generate", "analyze", "semantic", "blind", "report", "all"])
+                    choices=["refimg", "generate", "analyze", "semantic", "rig", "blind", "report", "all"])
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--only", nargs="*", help="limit generate to these providers")
     ap.add_argument("--max-cases", type=int, default=None,
@@ -246,6 +288,8 @@ def main(argv: list[str] | None = None) -> None:
         cmd_analyze(cfg, cases)
     if args.command in ("semantic", "all"):
         cmd_semantic(cfg)
+    if args.command in ("rig", "all"):
+        cmd_rig(cfg)
     if args.command in ("blind", "all"):
         cmd_blind(cfg)
     if args.command in ("report", "all"):
