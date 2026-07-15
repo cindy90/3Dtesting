@@ -24,9 +24,13 @@ on:
         required: true
         default: "1"
 
-# One run at a time so parallel dispatches can't double-spend credits.
+# Serialize only runs that target the SAME providers (that's the real
+# double-spend risk: dispatching an identical batch twice). Distinct provider
+# sets get distinct groups and run in parallel — a publication round is three
+# provider batches, and forcing them serial (or, worse, letting a third
+# dispatch cancel a pending one) just wastes wall-clock.
 concurrency:
-  group: blindtest
+  group: blindtest-${{ github.event.inputs.providers }}
   cancel-in-progress: false
 
 jobs:
