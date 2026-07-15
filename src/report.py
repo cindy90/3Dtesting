@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import json
 import os
+import random
 from collections import defaultdict
 from statistics import median
 from typing import Any
 
-from .config import RunConfig, load_cases
+from .config import RunConfig, load_cases, stable_seed
 
 
 def _load(path: str) -> Any:
@@ -29,6 +30,35 @@ def _med(vals: list[float]) -> float | None:
 
 def _fmt(x: Any) -> str:
     return "—" if x is None else f"{x:.1f}" if isinstance(x, float) else str(x)
+
+
+def _bootstrap_ci(rows: list[dict[str, Any]], key: str = "production_score",
+                  iters: int = 2000, seed: int = 0) -> tuple[float, float] | None:
+    """95% CI of the median score via CLUSTER bootstrap (resample cases).
+
+    Repeat generations of the same case are correlated (same prompt, same
+    reference pixels), so resampling individual meshes would fake power.
+    We resample case_ids with replacement and carry each sampled case's
+    repeats along whole. Needs >=5 distinct cases to say anything.
+    """
+    by_case: dict[str, list[float]] = defaultdict(list)
+    for s in rows:
+        v = s.get(key)
+        if v is not None:
+            by_case[s["case_id"]].append(float(v))
+    case_ids = sorted(by_case)
+    if len(case_ids) < 5:
+        return None
+    rng = random.Random(seed)
+    meds: list[float] = []
+    for _ in range(iters):
+        pool: list[float] = []
+        for _ in case_ids:
+            pool.extend(by_case[rng.choice(case_ids)])
+        meds.append(median(pool))
+    meds.sort()
+    return (round(meds[int(0.025 * (iters - 1))], 1),
+            round(meds[int(0.975 * (iters - 1))], 1))
 
 
 def build_report(cfg: RunConfig) -> str:
@@ -67,23 +97,31 @@ def build_report(cfg: RunConfig) -> str:
 
     # --- headline table ---
     lines.append("## Headline (median production score)\n")
-    lines.append("| Model | Completion | Median production | Watertight | Topology | Riggability | Asset* | Latency |")
-    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|")
+    lines.append("| Model | Completion | Median production | 95% CI | Watertight | Topology | Riggability | Asset* | Latency |")
+    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
     ranking = sorted(providers,
                      key=lambda p: (agg[p]["median_production_score"] or -1),
                      reverse=True)
+    ci_seed = stable_seed(cfg.run_id)
+    cis = {p: _bootstrap_ci(by_prov.get(p, []), seed=ci_seed) for p in providers}
     for p in ranking:
         a = agg[p]
         comp = f"{produced[p]}/{attempted[p]}"
         lt = f"{median(lat[p]):.0f}s" if lat.get(p) else "—"
+        ci = cis.get(p)
+        ci_s = f"{ci[0]:.0f}–{ci[1]:.0f}" if ci else "—"
         lines.append(
-            f"| **{p}** | {comp} | {_fmt(a['median_production_score'])} | "
+            f"| **{p}** | {comp} | {_fmt(a['median_production_score'])} | {ci_s} | "
             f"{_fmt(a['median_watertight_score'])} | {_fmt(a['median_topology_score'])} | "
             f"{_fmt(a['median_riggability_score'])} | {_fmt(a['median_asset_completeness'])} | {lt} |"
         )
     lines.append("\n*Asset completeness (UV/normals/material) is reported for "
                  "reference only and does not affect rank — this is the exact "
                  "dimension public arenas over-weight.*\n")
+    lines.append("*95% CI: cluster bootstrap over cases (repeat generations of "
+                 "a case travel together, so repeats don't fake power). "
+                 "**Models whose CIs overlap are statistically tied** — treat "
+                 "them as one tier, not a ranking. Shown only with ≥5 cases.*\n")
 
     # --- second profile: game-asset readiness (budget fit + UVs) ---
     lines.append("## Game-asset profile (median; budget-fit 0.15 + UV 0.10, "

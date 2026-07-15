@@ -94,13 +94,23 @@ def _apply_image_mode(cfg: RunConfig, cases: list[Case]) -> list[Case]:
     return out
 
 
-def cmd_generate(cfg: RunConfig, cases: list[Case], only: list[str] | None) -> None:
+def cmd_generate(cfg: RunConfig, cases: list[Case], only: list[str] | None,
+                 repeats: int = 1) -> None:
+    """Submit every case to every provider, ``repeats`` times each.
+
+    Repeats share the case's identity (same prompt/reference image/case_id)
+    but write distinct mesh files; downstream medians pool them and the
+    report's bootstrap CI resamples by case (cluster bootstrap) so correlated
+    repeats don't fake extra statistical power.
+    """
+    import dataclasses
     results: list[dict[str, Any]] = []
     provider_keys = [k for k in cfg.providers if not only or k in only]
+    repeats = max(1, repeats)
     print(f"generating {len(cases)} cases x {len(provider_keys)} providers "
-          f"[mode={cfg.mode}]")
+          f"x {repeats} repeats [mode={cfg.mode}]")
 
-    def _one(pkey: str, case: Case) -> dict[str, Any]:
+    def _one(pkey: str, case: Case, rep: int) -> dict[str, Any]:
         prov = build_provider(pkey, cfg.providers[pkey])
         # per-provider timeout override (e.g. seed3d regularly exceeds 900s)
         prov.timeout_s = float((cfg.providers[pkey] or {}).get("timeout_s",
@@ -108,9 +118,11 @@ def cmd_generate(cfg: RunConfig, cases: list[Case], only: list[str] | None) -> N
         prov.poll_interval_s = cfg.poll_interval_s
         res = prov.run(case, cfg.out_dir)
         status = "ok" if res.ok else f"FAIL({res.error})"
-        print(f"  [{pkey}] {case.id}: {status}")
+        rep_tag = f" (rep {rep})" if rep > 1 else ""
+        print(f"  [{pkey}] {case.id}{rep_tag}: {status}")
         return {
-            "provider": res.provider, "case_id": res.case_id, "ok": res.ok,
+            "provider": res.provider, "case_id": res.case_id, "rep": rep,
+            "ok": res.ok,
             "mesh_path": res.mesh_path, "mesh_url": res.mesh_url,
             "task_id": res.task_id,
             "latency_s": res.latency_s, "error": res.error,
@@ -118,9 +130,10 @@ def cmd_generate(cfg: RunConfig, cases: list[Case], only: list[str] | None) -> N
 
     # modest parallelism: distinct providers run concurrently, cases serial
     # within a provider is unnecessary — the APIs are async — so fan out all.
-    jobs = [(p, c) for p in provider_keys for c in cases]
+    jobs = [(p, c if r == 1 else dataclasses.replace(c, out_name=f"{c.id}__r{r}"), r)
+            for p in provider_keys for c in cases for r in range(1, repeats + 1)]
     with ThreadPoolExecutor(max_workers=min(8, max(1, len(jobs)))) as ex:
-        futs = {ex.submit(_one, p, c): (p, c.id) for p, c in jobs}
+        futs = {ex.submit(_one, p, c, r): (p, c.id, r) for p, c, r in jobs}
         for fut in as_completed(futs):
             results.append(fut.result())
 
@@ -292,6 +305,10 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--mode", choices=["text", "image"], default=None,
                     help="input mode; 'image' runs every model off the shared "
                          "reference images (overrides config)")
+    ap.add_argument("--repeats", type=int, default=1,
+                    help="generate each case N times per provider (repeat "
+                         "samples share the case's prompt/reference image; "
+                         "the report's CI resamples by case, not by repeat)")
     ap.add_argument("--force", action="store_true",
                     help="refimg: regenerate reference images even if cached")
     args = ap.parse_args(argv)
@@ -318,7 +335,7 @@ def main(argv: list[str] | None = None) -> None:
             cases = _apply_image_mode(cfg, cases)
 
     if args.command in ("generate", "all"):
-        cmd_generate(cfg, cases, args.only)
+        cmd_generate(cfg, cases, args.only, repeats=args.repeats)
     if args.command in ("analyze", "all"):
         cmd_analyze(cfg, cases)
     if args.command in ("semantic", "all"):

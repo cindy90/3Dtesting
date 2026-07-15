@@ -227,7 +227,9 @@ def _symmetry_residual(mesh: trimesh.Trimesh) -> float | None:
         diag = float(np.linalg.norm(mesh.bounding_box.extents))
         if diag <= 0:
             return None
-        samples, _ = trimesh.sample.sample_surface(mesh, _SYMMETRY_SAMPLES)
+        # seeded: an unseeded sample made the whole pipeline non-deterministic
+        # (same mesh, different symmetry residual run to run)
+        samples, _ = trimesh.sample.sample_surface(mesh, _SYMMETRY_SAMPLES, seed=0)
         centroid = samples.mean(axis=0)
         centred = samples - centroid
         mirrored = centred.copy()

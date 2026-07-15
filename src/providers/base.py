@@ -85,6 +85,9 @@ class Case:
     expect_watertight: bool = True
     expect_symmetry: bool = False   # true for bilateral characters
     notes: str = ""
+    # distinct output filename for repeat generations of the same case
+    # (case identity — prompts, refs, category — stays keyed by ``id``)
+    out_name: str | None = None
 
 
 @dataclass
@@ -252,7 +255,8 @@ class Provider:
                 if not url:
                     return GenResult(self.name, case.id, ok=False, task_id=task_id,
                                      error="succeeded but no asset url", raw=raw)
-                dest = os.path.join(out_dir, self.name, f"{case.id}.{self.out_format}")
+                dest = os.path.join(out_dir, self.name,
+                                    f"{case.out_name or case.id}.{self.out_format}")
                 try:
                     path = self.download(url, dest)
                 except Exception as exc:  # noqa: BLE001
