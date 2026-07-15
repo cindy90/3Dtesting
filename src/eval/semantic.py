@@ -101,12 +101,25 @@ _JUDGE_PROMPT = (
 
 def vlm_judge(manifest: dict[str, Any], refs_dir: str, *, model: str,
               api_key: str, base_url: str = "https://ark.cn-beijing.volces.com",
-              session=None) -> list[dict[str, Any]]:
-    """Score each manifest item 1-5 with an Ark vision model."""
+              session=None, dedupe_by_case: bool = True) -> list[dict[str, Any]]:
+    """Score each manifest item 1-5 with an Ark vision model.
+
+    ``dedupe_by_case`` judges only the first mesh per (provider, case_id):
+    semantic fidelity is a property of the prompt-to-shape match, not of
+    which repeat generation we happened to render, so scoring every repeat
+    just multiplies the Ark bill (which shares the account balance with
+    Seed3D generation) for no extra signal.
+    """
     import requests
     sess = session or requests.Session()
     out = []
+    seen: set[tuple[str, str]] = set()
     for item in manifest["items"]:
+        if dedupe_by_case:
+            key = (item["provider"], item["case_id"])
+            if key in seen:
+                continue
+            seen.add(key)
         ref = os.path.join(refs_dir, f"{item['case_id']}.png")
         content: list[dict[str, Any]] = [{"type": "text", "text": _JUDGE_PROMPT}]
         for p in [ref] + item["views"]:
