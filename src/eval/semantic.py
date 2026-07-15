@@ -126,7 +126,13 @@ def vlm_judge(manifest: dict[str, Any], refs_dir: str, *, model: str,
             m = re.search(r"[1-5]", text)
             score = int(m.group(0)) if m else None
         except Exception as exc:  # noqa: BLE001
-            print(f"  [semantic] vlm failed for {item['blind_id']}: {exc}")
+            # surface the Ark error body: a bare 404 is undiagnosable, the
+            # body says whether the model id is wrong vs not activated
+            body = ""
+            r = getattr(exc, "response", None)
+            if r is not None:
+                body = f" | body: {(r.text or '')[:300]}"
+            print(f"  [semantic] vlm failed for {item['blind_id']}: {exc}{body}")
             score = None
         out.append({**{k: item[k] for k in ("blind_id", "provider", "case_id")},
                     "vlm_match_1to5": score})

@@ -171,18 +171,24 @@ def build_report(cfg: RunConfig) -> str:
         if by_r:
             lines.append("## Rig smoke test (Blender auto-weights + 45° bend — "
                          "measured, not proxied)\n")
-            lines.append("| Model | Bind rate | Median smoke score | Median volume kept | Stretch p99 |")
-            lines.append("|---|---:|---:|---:|---:|")
+            lines.append("Bind (weld) = auto-weights succeed after a standard "
+                         "cleanup pass (position weld + degenerate dissolve + "
+                         "debris removal). +Remesh = only binds after a voxel "
+                         "remesh, which discards UVs and topology — a real "
+                         "extra DCC step, score capped at 65.\n")
+            lines.append("| Model | Bind (weld) | Bind (+remesh) | Median smoke score | Median volume kept | Stretch p99 |")
+            lines.append("|---|---:|---:|---:|---:|---:|")
             def _rmed(rows, key):
                 vals=[x.get(key) for x in rows if isinstance(x.get(key),(int,float))]
                 return median(vals) if vals else None
             for p in sorted(by_r, key=lambda k: -( _rmed(by_r[k],"rig_smoke_score") or 0)):
                 rows=by_r[p]
-                bind=sum(1 for x in rows if x.get("bind_ok"))
+                weld=sum(1 for x in rows if x.get("bind_tier")=="welded")
+                anyb=sum(1 for x in rows if x.get("bind_ok"))
                 sm=_rmed(rows,"rig_smoke_score"); vr=_rmed(rows,"volume_ratio"); st=_rmed(rows,"edge_stretch_p99")
                 vr_s = "—" if vr is None else f"{vr:.2f}"
-                lines.append(f"| {p} | {bind}/{len(rows)} | {_fmt(sm)} | "
-                             f"{vr_s} | {_fmt(st)} |")
+                lines.append(f"| {p} | {weld}/{len(rows)} | {anyb}/{len(rows)} | "
+                             f"{_fmt(sm)} | {vr_s} | {_fmt(st)} |")
             lines.append("")
 
     # --- slicer ground truth (PrusaSlicer) — the print-scenario referee ---
