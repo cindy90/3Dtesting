@@ -39,7 +39,8 @@ def load_config(path: str = "config.yaml") -> RunConfig:
         mode=str(raw.get("mode", "text")),
         reference_images=ref,
         refs_dir=str(ref.get("dir", "cases/refs")),
-        extra={"semantic": raw.get("semantic", {}) or {}},
+        extra={"semantic": raw.get("semantic", {}) or {},
+               "generate": raw.get("generate", {}) or {}},
     )
 
 

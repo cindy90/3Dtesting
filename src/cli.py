@@ -104,19 +104,35 @@ def cmd_generate(cfg: RunConfig, cases: list[Case], only: list[str] | None,
     repeats don't fake extra statistical power.
     """
     import dataclasses
+    import threading
     results: list[dict[str, Any]] = []
     provider_keys = [k for k in cfg.providers if not only or k in only]
     repeats = max(1, repeats)
     print(f"generating {len(cases)} cases x {len(provider_keys)} providers "
           f"x {repeats} repeats [mode={cfg.mode}]")
 
+    # Per-BACKEND concurrency cap. tripo / tripo_h31 / tripo_p1 / tripo_p1d are
+    # four provider keys but ONE Tripo account — 24-way fan-out slammed that
+    # single backend into 429 rate-limits and burned the run. Group providers by
+    # their credential env (the real backend) and cap simultaneous in-flight
+    # tasks per backend; distinct backends still run fully in parallel.
+    per_backend = int(cfg.extra.get("generate", {}).get("per_backend_concurrency", 4))
+    backend_of: dict[str, str] = {}
+    for pkey in provider_keys:
+        try:
+            backend_of[pkey] = build_provider(pkey, cfg.providers[pkey]).api_key_env or pkey
+        except Exception:
+            backend_of[pkey] = pkey
+    sems = {b: threading.Semaphore(per_backend) for b in set(backend_of.values())}
+
     def _one(pkey: str, case: Case, rep: int) -> dict[str, Any]:
-        prov = build_provider(pkey, cfg.providers[pkey])
-        # per-provider timeout override (e.g. seed3d regularly exceeds 900s)
-        prov.timeout_s = float((cfg.providers[pkey] or {}).get("timeout_s",
-                                                               cfg.timeout_s))
-        prov.poll_interval_s = cfg.poll_interval_s
-        res = prov.run(case, cfg.out_dir)
+        with sems[backend_of[pkey]]:                 # cap load on the real backend
+            prov = build_provider(pkey, cfg.providers[pkey])
+            # per-provider timeout override (e.g. seed3d regularly exceeds 900s)
+            prov.timeout_s = float((cfg.providers[pkey] or {}).get("timeout_s",
+                                                                   cfg.timeout_s))
+            prov.poll_interval_s = cfg.poll_interval_s
+            res = prov.run(case, cfg.out_dir)
         status = "ok" if res.ok else f"FAIL({res.error})"
         rep_tag = f" (rep {rep})" if rep > 1 else ""
         print(f"  [{pkey}] {case.id}{rep_tag}: {status}")
@@ -128,13 +144,10 @@ def cmd_generate(cfg: RunConfig, cases: list[Case], only: list[str] | None,
             "latency_s": res.latency_s, "error": res.error,
         }
 
-    # modest parallelism: distinct providers run concurrently, cases serial
-    # within a provider is unnecessary — the APIs are async — so fan out all.
+    # distinct providers/backends run concurrently; the per-backend semaphore
+    # above keeps any single API under its rate limit
     jobs = [(p, c if r == 1 else dataclasses.replace(c, out_name=f"{c.id}__r{r}"), r)
             for p in provider_keys for c in cases for r in range(1, repeats + 1)]
-    # generation is poll-bound (the APIs are async server-side), so wide
-    # fan-out is cheap for us; ~2 in-flight per provider stays under
-    # everyone's rate limits even with the full 14-provider cohort
     with ThreadPoolExecutor(max_workers=min(24, max(1, len(jobs)))) as ex:
         futs = {ex.submit(_one, p, c, r): (p, c.id, r) for p, c, r in jobs}
         for fut in as_completed(futs):
