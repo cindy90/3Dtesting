@@ -38,13 +38,16 @@ def build_report(cfg: RunConfig) -> str:
 
     providers = sorted({r["provider"] for r in gen})
 
-    # completion: attempted vs produced
+    # completion: attempted vs produced; latency: median seconds per success
     attempted = defaultdict(int)
     produced = defaultdict(int)
+    lat = defaultdict(list)
     for r in gen:
         attempted[r["provider"]] += 1
         if r.get("ok"):
             produced[r["provider"]] += 1
+            if r.get("latency_s"):
+                lat[r["provider"]].append(float(r["latency_s"]))
 
     by_prov: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for s in scores:
@@ -64,18 +67,19 @@ def build_report(cfg: RunConfig) -> str:
 
     # --- headline table ---
     lines.append("## Headline (median production score)\n")
-    lines.append("| Model | Completion | Median production | Watertight | Topology | Riggability | Asset* |")
-    lines.append("|---|---:|---:|---:|---:|---:|---:|")
+    lines.append("| Model | Completion | Median production | Watertight | Topology | Riggability | Asset* | Latency |")
+    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|")
     ranking = sorted(providers,
                      key=lambda p: (agg[p]["median_production_score"] or -1),
                      reverse=True)
     for p in ranking:
         a = agg[p]
         comp = f"{produced[p]}/{attempted[p]}"
+        lt = f"{median(lat[p]):.0f}s" if lat.get(p) else "—"
         lines.append(
             f"| **{p}** | {comp} | {_fmt(a['median_production_score'])} | "
             f"{_fmt(a['median_watertight_score'])} | {_fmt(a['median_topology_score'])} | "
-            f"{_fmt(a['median_riggability_score'])} | {_fmt(a['median_asset_completeness'])} |"
+            f"{_fmt(a['median_riggability_score'])} | {_fmt(a['median_asset_completeness'])} | {lt} |"
         )
     lines.append("\n*Asset completeness (UV/normals/material) is reported for "
                  "reference only and does not affect rank — this is the exact "
