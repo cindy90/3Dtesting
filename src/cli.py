@@ -132,7 +132,10 @@ def cmd_generate(cfg: RunConfig, cases: list[Case], only: list[str] | None,
     # within a provider is unnecessary — the APIs are async — so fan out all.
     jobs = [(p, c if r == 1 else dataclasses.replace(c, out_name=f"{c.id}__r{r}"), r)
             for p in provider_keys for c in cases for r in range(1, repeats + 1)]
-    with ThreadPoolExecutor(max_workers=min(8, max(1, len(jobs)))) as ex:
+    # generation is poll-bound (the APIs are async server-side), so wide
+    # fan-out is cheap for us; ~2 in-flight per provider stays under
+    # everyone's rate limits even with the full 14-provider cohort
+    with ThreadPoolExecutor(max_workers=min(24, max(1, len(jobs)))) as ex:
         futs = {ex.submit(_one, p, c, r): (p, c.id, r) for p, c, r in jobs}
         for fut in as_completed(futs):
             results.append(fut.result())

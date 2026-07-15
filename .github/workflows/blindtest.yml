@@ -32,7 +32,9 @@ concurrency:
 jobs:
   blindtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # publication rounds run 40 cases x N repeats per provider group; generation
+    # is poll-bound and analysis is per-mesh, so give the job real headroom
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@v4
 
