@@ -119,22 +119,37 @@ def build_report(cfg: RunConfig) -> str:
                 lines.append(f"| {p} | {median(by_p[p]):.1f} | {len(by_p[p])} |")
             lines.append("")
 
-    # --- watertight pass-rate: a blunt, decision-useful number ---
+    # --- watertight pass-rate, THREE tiers (raw / welded / after auto-repair).
+    # Vendors' self-reported "watertight rates" are incomparable because they
+    # never state the processing tier; the same file can show 300k open edges
+    # on raw buffers and 0 after a position weld. We report all three.
     metrics = _load(os.path.join(cfg.out_dir, "metrics.json"))
-    wt = defaultdict(lambda: [0, 0])  # provider -> [watertight, total_ok]
+    wt3 = defaultdict(lambda: [0, 0, 0, 0])  # raw, welded, repaired, total
     for m in metrics:
         if not m.get("ok"):
             continue
-        wt[m["provider"]][1] += 1
-        if m.get("is_watertight"):
-            wt[m["provider"]][0] += 1
-    lines.append("## Watertight pass-rate (share of produced meshes that are closed solids)\n")
-    lines.append("| Model | Watertight | Rate |")
-    lines.append("|---|---:|---:|")
+        extra = m.get("extra", {}) or {}
+        c = wt3[m["provider"]]
+        c[3] += 1
+        welded = bool(m.get("is_watertight"))
+        raw_closed = welded and extra.get("raw_boundary_edges", 0) == 0
+        repaired = welded or bool(extra.get("watertight_after_repair"))
+        c[0] += raw_closed
+        c[1] += welded
+        c[2] += repaired
+    lines.append("## Watertight pass-rate — three tiers\n")
+    lines.append("Raw = closed on the exported buffers as-is; Welded = closed "
+                 "after a position weld (any pipeline's first step); Repaired = "
+                 "closed after weld + one-click hole fill. Vendor-quoted rates "
+                 "that don't state their tier are not comparable to any column.\n")
+    lines.append("| Model | Raw | Welded | +Auto-repair |")
+    lines.append("|---|---:|---:|---:|")
     for p in ranking:
-        w, t = wt[p]
-        rate = f"{100*w/t:.0f}%" if t else "—"
-        lines.append(f"| {p} | {w}/{t} | {rate} |")
+        r, w, rep, t = wt3[p]
+        if not t:
+            lines.append(f"| {p} | — | — | — |")
+            continue
+        lines.append(f"| {p} | {r}/{t} | {w}/{t} | {rep}/{t} |")
     lines.append("")
 
     # --- per-category median production score ---
