@@ -230,6 +230,41 @@ def cmd_rig(cfg: RunConfig) -> None:
     print(f"rig smoke: {len(results)} meshes -> {cfg.out_dir}/rig_scores.json")
 
 
+def cmd_slice(cfg: RunConfig) -> None:
+    """PrusaSlicer ground truth: --info manifold verdict + draft gcode export.
+
+    Two tiers per mesh, both from the referee real print users run: the
+    strict ADMesh manifold verdict (the tier vendor pass-rates quote) and the
+    lenient "did it slice" (PrusaSlicer auto-repairs silently, so this passes
+    more). Skips gracefully when prusa-slicer isn't installed.
+    """
+    from .eval.slicer_probe import find_slicer, probe
+    if not find_slicer():
+        print("slice: prusa-slicer not found (apt-get install prusa-slicer) "
+              "— skipping slicer ground truth")
+        return
+    gen_path = os.path.join(cfg.out_dir, "generation.json")
+    if not os.path.exists(gen_path):
+        raise SystemExit("run `generate` first (no generation.json)")
+    with open(gen_path) as fh:
+        gen = json.load(fh)
+    workdir = os.path.join(cfg.out_dir, "_slice_tmp")
+    os.makedirs(workdir, exist_ok=True)
+    results = []
+    for r in gen:
+        if not (r.get("ok") and r.get("mesh_path") and os.path.exists(r["mesh_path"])):
+            continue
+        data = probe(r["mesh_path"], workdir)
+        data.update({"provider": r["provider"], "case_id": r["case_id"]})
+        results.append(data)
+        print(f"  [slice] {r['provider']}/{r['case_id']}: "
+              f"manifold={data.get('slicer_manifold')} gcode={data.get('gcode_ok')} "
+              f"open_edges={data.get('open_edges')} "
+              f"{('ERR ' + str(data['error'])) if data.get('error') else ''}")
+    _write_json(os.path.join(cfg.out_dir, "slicer_scores.json"), results)
+    print(f"slicer: {len(results)} meshes -> {cfg.out_dir}/slicer_scores.json")
+
+
 def cmd_blind(cfg: RunConfig) -> None:
     gen_path = os.path.join(cfg.out_dir, "generation.json")
     with open(gen_path) as fh:
@@ -248,7 +283,7 @@ def cmd_report(cfg: RunConfig) -> None:
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="blind3d")
     ap.add_argument("command",
-                    choices=["refimg", "generate", "analyze", "semantic", "rig", "blind", "report", "all"])
+                    choices=["refimg", "generate", "analyze", "semantic", "rig", "slice", "blind", "report", "all"])
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--only", nargs="*", help="limit generate to these providers")
     ap.add_argument("--max-cases", type=int, default=None,
@@ -290,6 +325,8 @@ def main(argv: list[str] | None = None) -> None:
         cmd_semantic(cfg)
     if args.command in ("rig", "all"):
         cmd_rig(cfg)
+    if args.command in ("slice", "all"):
+        cmd_slice(cfg)
     if args.command in ("blind", "all"):
         cmd_blind(cfg)
     if args.command in ("report", "all"):

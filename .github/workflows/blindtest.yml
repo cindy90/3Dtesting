@@ -48,6 +48,12 @@ jobs:
           # Blender headless module for the rig smoke test (non-fatal; ~300MB, pip-cached)
           pip install bpy || echo "bpy unavailable; rig smoke test will be skipped"
 
+      - name: Install PrusaSlicer (slicer ground truth; non-fatal)
+        run: |
+          sudo apt-get update -qq || true
+          sudo apt-get install -y prusa-slicer \
+            || echo "prusa-slicer unavailable; slicer ground truth will be skipped"
+
       - name: Self-test (no keys, proves the analysis pipeline before spending)
         run: python -m src.selftest
 
@@ -85,6 +91,9 @@ jobs:
 
       - name: Rig smoke test (Blender bind + bend)
         run: python -m src.cli rig
+
+      - name: Slicer ground truth (PrusaSlicer --info + draft g-code)
+        run: python -m src.cli slice
 
       - name: Blind set + report
         run: |

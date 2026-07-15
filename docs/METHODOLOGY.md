@@ -60,7 +60,7 @@
 
 | 缺口 | 为什么重要 | 实现难度 | 优先级 |
 |---|---|---|---|
-| **切片器实测**(PrusaSlicer/Bambu CLI 无头跑) | "slicer pass" 是该场景的 ground truth,厂商都在引用这个口径(Meshy 自报 97%),我们应有同口径数据 | 中(CI 装 slicer CLI) | **P0** |
+| **切片器实测**(PrusaSlicer/Bambu CLI 无头跑) | "slicer pass" 是该场景的 ground truth,厂商都在引用这个口径(Meshy 自报 97%),我们应有同口径数据 | 中(CI 装 slicer CLI) | ~~**P0**~~ **已实现**(2026-07-15:`src/eval/slicer_probe.py`,双档口径——`--info` ADMesh manifold 判定为严格档 + 草稿 g-code 导出为宽松档;发现 PrusaSlicer 切片时会静默自动修复,故"能出码"≠"网格干净",报告两列并列;副产物 shells 数恰好补上绑定烟测抓不到悬浮碎片的盲区) |
 | **自相交检测** | 自相交网格布尔/切片会错,我们完全没测 | 中(需 manifold/libigl) | P1 |
 | **最小壁厚** | FDM 失败主因之一;细支/薄壁是 AI 生成重灾区 | 中(SDF 采样) | P1 |
 | 伪柄/genus 异常 | 混元 c01 genus=25,MC 噪声柄影响打印后处理 | 低(已记录 genus,报告化即可) | P2 |
@@ -113,8 +113,10 @@
 1. **40-case + 重复生成 + 置信区间**(统计功效)——~$40-60
 2. **VLM 语义判官全量首跑**(梯队内区分)——已接线,随大轮自动跑
 3. **quad 模式专项轮**(游戏场景的真产品面)——config 参数轮,~$5
-4. **切片器实测**(打印场景 ground truth)——CI 装 PrusaSlicer CLI
+4. ~~**切片器实测**(打印场景 ground truth)——CI 装 PrusaSlicer CLI~~ **已完成**
+   (apt 装 2.7.2,随每轮 workflow 自动跑,报告新增 "Slicer ground truth" 表)
 5. ~~**Blender 绑定烟测**(游戏场景 ground truth)——bpy headless~~ **已完成**
    (随每轮 workflow 自动跑,报告新增 "Rig smoke test" 表)
 
-其中 1+2 只需充值后点一次大轮;3 是一次 config 变体轮;4 是剩下的中等开发项。
+其中 1+2 只需充值后点一次大轮;3 是一次 config 变体轮。开发项(4/5)均已
+落地——下一次大轮将自动带上绑定烟测与切片器实测两个 ground truth。

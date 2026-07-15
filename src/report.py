@@ -147,6 +147,40 @@ def build_report(cfg: RunConfig) -> str:
                              f"{vr_s} | {_fmt(st)} |")
             lines.append("")
 
+    # --- slicer ground truth (PrusaSlicer) — the print-scenario referee ---
+    slc_path = os.path.join(cfg.out_dir, "slicer_scores.json")
+    if os.path.exists(slc_path):
+        slc = _load(slc_path)
+        by_s: dict[str, list[dict]] = defaultdict(list)
+        for s in slc:
+            if not s.get("error"):
+                by_s[s["provider"]].append(s)
+        if by_s:
+            lines.append("## Slicer ground truth (PrusaSlicer — the referee "
+                         "real print users run)\n")
+            lines.append("Manifold = strict ADMesh verdict on the exported STL "
+                         "(the tier vendor pass-rates quote). Sliced = draft "
+                         "g-code export succeeded — LENIENT, PrusaSlicer "
+                         "auto-repairs silently, so read both columns.\n")
+            lines.append("| Model | Manifold | Sliced | Median open edges | Median shells |")
+            lines.append("|---|---:|---:|---:|---:|")
+            def _smed(rows, key):
+                vals = [x.get(key) for x in rows if isinstance(x.get(key), (int, float))]
+                return median(vals) if vals else None
+            def _srate(rows, key):
+                return sum(1 for x in rows if x.get(key))
+            for p in sorted(by_s, key=lambda k: (-_srate(by_s[k], "slicer_manifold"),
+                                                 -_srate(by_s[k], "gcode_ok"))):
+                rows = by_s[p]
+                oe = _smed(rows, "open_edges")
+                sh = _smed(rows, "n_parts")
+                lines.append(
+                    f"| {p} | {_srate(rows, 'slicer_manifold')}/{len(rows)} | "
+                    f"{_srate(rows, 'gcode_ok')}/{len(rows)} | "
+                    f"{'—' if oe is None else f'{oe:.0f}'} | "
+                    f"{'—' if sh is None else f'{sh:.0f}'} |")
+            lines.append("")
+
     # --- watertight pass-rate, THREE tiers (raw / welded / after auto-repair).
     # Vendors' self-reported "watertight rates" are incomparable because they
     # never state the processing tier; the same file can show 300k open edges
