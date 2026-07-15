@@ -111,8 +111,11 @@ def vlm_judge(manifest: dict[str, Any], refs_dir: str, *, model: str,
     Seed3D generation) for no extra signal.
     """
     import requests
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     sess = session or requests.Session()
-    out = []
+
+    # de-dupe up front so the parallel pool sizes to the real work
+    todo = []
     seen: set[tuple[str, str]] = set()
     for item in manifest["items"]:
         if dedupe_by_case:
@@ -120,6 +123,9 @@ def vlm_judge(manifest: dict[str, Any], refs_dir: str, *, model: str,
             if key in seen:
                 continue
             seen.add(key)
+        todo.append(item)
+
+    def _judge(item: dict[str, Any]) -> dict[str, Any]:
         ref = os.path.join(refs_dir, f"{item['case_id']}.png")
         content: list[dict[str, Any]] = [{"type": "text", "text": _JUDGE_PROMPT}]
         for p in [ref] + item["views"]:
@@ -133,7 +139,7 @@ def vlm_judge(manifest: dict[str, Any], refs_dir: str, *, model: str,
                          "Content-Type": "application/json"},
                 json={"model": model,
                       "messages": [{"role": "user", "content": content}]},
-                timeout=90)
+                timeout=60)
             resp.raise_for_status()
             text = resp.json()["choices"][0]["message"]["content"]
             m = re.search(r"[1-5]", text)
@@ -147,7 +153,15 @@ def vlm_judge(manifest: dict[str, Any], refs_dir: str, *, model: str,
                 body = f" | body: {(r.text or '')[:300]}"
             print(f"  [semantic] vlm failed for {item['blind_id']}: {exc}{body}")
             score = None
-        out.append({**{k: item[k] for k in ("blind_id", "provider", "case_id")},
-                    "vlm_match_1to5": score})
         print(f"  [semantic] {item['provider']}/{item['case_id']}: vlm={score}")
+        return {**{k: item[k] for k in ("blind_id", "provider", "case_id")},
+                "vlm_match_1to5": score}
+
+    # network-bound; fan out so a 40-case cohort isn't 160 serial round-trips.
+    # requests.Session is thread-safe for concurrent requests to the same host.
+    out = []
+    with ThreadPoolExecutor(max_workers=min(8, max(1, len(todo)))) as ex:
+        futs = [ex.submit(_judge, it) for it in todo]
+        for fut in as_completed(futs):
+            out.append(fut.result())
     return out
