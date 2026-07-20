@@ -36,7 +36,9 @@ providers:
   # Hunyuan's LowPoly product is Tencent-platform-only (fal floor is 40K
   # faces) — documented coverage gap, not tested.
   tripo_h31q: {model_version: "v3.1-20260211", texture: true, params: {quad: true}}
-  meshy_lp:   {ai_model: "meshy-6", params: {model_type: "smart-topology", target_polycount: 4000}}
+  # smart-topology requires the dedicated topology model (API 400 says
+  # meshy-t1 or meshy-t2; t2 is current)
+  meshy_lp:   {ai_model: "meshy-t2", params: {model_type: "smart-topology", target_polycount: 4000}}
   rodin_fal_q: {model_id: "fal-ai/hyper3d/rodin/v2.5", params: {mesh_mode: "Quad", quality: "medium", material: "PBR"}}
   rodin:     {tier: "Regular", mesh_mode: "Quad", quality: "high"}   # 影眸/Deemos
   # Seed3D 2.0 (字节/火山方舟) — 模型ID由用户从方舟控制台确认;

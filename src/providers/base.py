@@ -206,12 +206,46 @@ class Provider:
                 head = fh.read(96)
             if head.startswith(b"PK\x03\x04"):
                 return self._extract_mesh_from_zip(dest)
+            if head.startswith(b"Kaydara FBX Binary"):
+                # some outputs legitimately ship FBX (e.g. Tripo's quad-retopo
+                # add-on) — convert to GLB with headless Blender so the rest
+                # of the pipeline stays uniform
+                return self._fbx_to_glb(dest)
             if not head.startswith(b"glTF"):
                 snippet = head.decode("utf-8", "replace")
                 raise ProviderError(
                     f"downloaded file is not GLB (magic missing). "
                     f"url={url[:120]} first bytes: {snippet!r}")
         return dest
+
+    @staticmethod
+    def _fbx_to_glb(dest: str) -> str:
+        """Convert an FBX (saved with a .glb name) to real GLB via bpy."""
+        import subprocess
+        import sys as _sys
+        fbx_path = dest[:-4] + ".fbx"
+        os.replace(dest, fbx_path)
+        script = (
+            "import bpy,sys\n"
+            "bpy.ops.wm.read_factory_settings(use_empty=True)\n"
+            "bpy.ops.import_scene.fbx(filepath=sys.argv[-2])\n"
+            "bpy.ops.export_scene.gltf(filepath=sys.argv[-1], export_format='GLB')\n"
+        )
+        try:
+            proc = subprocess.run(
+                [_sys.executable, "-c", script, fbx_path, dest],
+                capture_output=True, text=True, timeout=300)
+        except subprocess.TimeoutExpired as exc:
+            raise ProviderError(f"fbx->glb conversion timed out; fbx kept at "
+                                f"{fbx_path}") from exc
+        if proc.returncode == 0 and os.path.exists(dest):
+            with open(dest, "rb") as fh:
+                if fh.read(4) == b"glTF":
+                    return dest
+        tail = (proc.stderr or proc.stdout or "")[-200:]
+        raise ProviderError(
+            f"downloaded FBX but conversion to GLB failed (is bpy installed?). "
+            f"fbx kept at {fbx_path}. {tail}")
 
     @staticmethod
     def _extract_mesh_from_zip(dest: str) -> str:
