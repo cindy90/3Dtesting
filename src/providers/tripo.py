@@ -70,6 +70,9 @@ class TripoProvider(Provider):
         # ask for a textured asset where supported (P1 ignores extra options)
         payload.setdefault("texture", True)
         payload.setdefault("pbr", True)
+        # per-model extra task options from config['params'] (e.g. the paid
+        # quad-retopo add-on for the H/v3 lines: params: {quad: true})
+        payload.update(self.config.get("params", {}) or {})
         # model_version self-heal: the exact dated string for a new family
         # (e.g. H3.1) isn't always documented; an unknown version fails at
         # submit without charging, so we can safely try candidates in order.

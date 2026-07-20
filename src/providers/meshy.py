@@ -49,6 +49,10 @@ class MeshyProvider(Provider):
                 raise ProviderError(f"meshy: reference image not found: {src}")
             payload = {"image_url": image_url, "ai_model": self._ai_model(),
                        "enable_pbr": True}
+            # per-model extras from config['params'] — e.g. the low-poly round
+            # sends {model_type: smart-topology, target_polycount: N} for
+            # Meshy's native low-poly generation (not decimation)
+            payload.update(self.config.get("params", {}) or {})
             url = f"{_BASE}/v1/image-to-3d"
         else:
             payload = {

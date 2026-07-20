@@ -25,6 +25,11 @@ REGISTRY: dict[str, type[Provider]] = {
     "tripo_h31": TripoProvider,   # same direct API, H3.1 model_version (config)
     "tripo_p1d": TripoProvider,   # direct API, P1 model_version (config)
     "meshy": MeshyProvider,
+    # --- quad / low-poly dedicated round (each vendor's low-poly mode,
+    # head-to-head against P1 whose default output IS low-poly) ---
+    "tripo_h31q": TripoProvider,   # H3.1 + paid quad-retopo add-on
+    "meshy_lp": MeshyProvider,     # Meshy native smart-topology low-poly
+    "rodin_fal_q": RodinFalProvider,  # Rodin quad mesh mode (via fal)
     "rodin": RodinProvider,       # 影眸/Deemos Rodin (needs RODIN_API_KEY)
     "seed3d": Seed3DProvider,     # ByteDance via Volcengine Ark (needs ARK_API_KEY)
     # hosted-on-fal commercial (uses FAL_KEY, no separate account)

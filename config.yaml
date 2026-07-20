@@ -31,6 +31,13 @@ providers:
   # "model_version: v3.1-20260211 or v3.0-20250812")。
   tripo_h31: {model_version: "v3.1-20260211", texture: true}
   meshy:     {ai_model: "meshy-6", target_polycount: 30000}
+  # --- quad/low-poly dedicated round (P0 item 3): each vendor's low-poly
+  # mode vs Tripo P1 (whose default output IS low-poly; reference data #17).
+  # Hunyuan's LowPoly product is Tencent-platform-only (fal floor is 40K
+  # faces) — documented coverage gap, not tested.
+  tripo_h31q: {model_version: "v3.1-20260211", texture: true, params: {quad: true}}
+  meshy_lp:   {ai_model: "meshy-6", params: {model_type: "smart-topology", target_polycount: 4000}}
+  rodin_fal_q: {model_id: "fal-ai/hyper3d/rodin/v2.5", params: {mesh_mode: "Quad", quality: "medium", material: "PBR"}}
   rodin:     {tier: "Regular", mesh_mode: "Quad", quality: "high"}   # 影眸/Deemos
   # Seed3D 2.0 (字节/火山方舟) — 模型ID由用户从方舟控制台确认;
   # 1.0 回退: doubao-seed3d-1-0-250928
