@@ -26,7 +26,7 @@ providers:
   # P1-20260311. For H3.1 paste the exact string from the docs' model list.
   # Needs TRIPO_API_KEY credit (fal hosts only v2.5 + P1).
   tripo:     {model_version: "v3.0-20250812", texture: true, pbr: true}
-  tripo_p1d: {model_version: "P1-20260311", texture: true}   # P1 官方直连 (图50 credits含贴图)
+  tripo_p1d: {model_version: "P1-20260311", texture: true, primary_profile: "game"}   # P1 官方直连 (图50 credits含贴图)
   # H3.1(HD 系列)= 官方 API 的 v3.1-20260211(官方 image-to-model 文档原文:
   # "model_version: v3.1-20260211 or v3.0-20250812")。
   tripo_h31: {model_version: "v3.1-20260211", texture: true}
@@ -40,7 +40,7 @@ providers:
   # tripo_fal disabled: fal's tripo v2.5 endpoint downloads image_url server-side
   # and rejects data URIs (422 file_download_error). Tripo runs first-party now.
   # tripo_fal: {model_id: "tripo3d/tripo/v2.5/image-to-3d"}
-  tripo_p1:  {model_id: "tripo3d/p1/image-to-3d"}           # P1.0 Smart Mesh (GDC 2026)
+  tripo_p1:  {model_id: "tripo3d/p1/image-to-3d", primary_profile: "game"}           # P1.0 Smart Mesh (GDC 2026)
   # --- open-source cohort (fal.ai, image-to-3D) ---
   hunyuan3d:     {model_id: "fal-ai/hunyuan3d/v2"}
   hunyuan3d_v21: {model_id: "fal-ai/hunyuan3d-v21"}

@@ -258,6 +258,20 @@ def cmd_rig(cfg: RunConfig) -> None:
     _write_json(os.path.join(cfg.out_dir, "rig_scores.json"), results)
     print(f"rig smoke: {len(results)} meshes -> {cfg.out_dir}/rig_scores.json")
 
+    # fold the MEASURED bind results into the headline riggability score
+    # (50/50 with the proxy; AUDIT errata #8 — the proxy misreads low-poly
+    # open meshes, e.g. P1 proxy 44.7 vs measured 91.5)
+    scores_path = os.path.join(cfg.out_dir, "scores.json")
+    if os.path.exists(scores_path):
+        from .analysis.scoring import blend_measured_rig
+        with open(scores_path) as fh:
+            scores = json.load(fh)
+        n = blend_measured_rig(scores, results)
+        if n:
+            _write_json(scores_path, scores)
+            print(f"rig: blended measured bind into riggability for {n} "
+                  f"scored meshes (scores.json updated)")
+
 
 def cmd_slice(cfg: RunConfig) -> None:
     """PrusaSlicer ground truth: --info manifold verdict + draft gcode export.

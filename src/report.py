@@ -104,20 +104,37 @@ def build_report(cfg: RunConfig) -> str:
                      reverse=True)
     ci_seed = stable_seed(cfg.run_id)
     cis = {p: _bootstrap_ci(by_prov.get(p, []), seed=ci_seed) for p in providers}
+    # providers whose product positioning is low-poly/game-first: this
+    # print/sim-weighted headline is NOT their target scenario, so mark the
+    # row and point readers at the game profile as their primary reading.
+    game_first = {p for p in providers
+                  if (cfg.providers.get(p) or {}).get("primary_profile") == "game"}
+    # measured-rig blending happened if any score row carries the component
+    rig_blended = any("riggability_measured_score" in s for s in scores)
     for p in ranking:
         a = agg[p]
         comp = f"{produced[p]}/{attempted[p]}"
         lt = f"{median(lat[p]):.0f}s" if lat.get(p) else "—"
         ci = cis.get(p)
         ci_s = f"{ci[0]:.0f}–{ci[1]:.0f}" if ci else "—"
+        mark = "†" if p in game_first else ""
         lines.append(
-            f"| **{p}** | {comp} | {_fmt(a['median_production_score'])} | {ci_s} | "
+            f"| **{p}**{mark} | {comp} | {_fmt(a['median_production_score'])} | {ci_s} | "
             f"{_fmt(a['median_watertight_score'])} | {_fmt(a['median_topology_score'])} | "
             f"{_fmt(a['median_riggability_score'])} | {_fmt(a['median_asset_completeness'])} | {lt} |"
         )
     lines.append("\n*Asset completeness (UV/normals/material) is reported for "
                  "reference only and does not affect rank — this is the exact "
                  "dimension public arenas over-weight.*\n")
+    if game_first:
+        lines.append("*† Low-poly / game-first product line: this print/sim-"
+                     "weighted table is not its target scenario — read its "
+                     "**game-asset profile** below as the primary number.*\n")
+    if rig_blended:
+        lines.append("*Riggability = 50/50 blend of the structural proxy and "
+                     "the MEASURED Blender bind (rig smoke test) where rig "
+                     "data exists; per-mesh components are kept in "
+                     "scores.json (errata #8).*\n")
     lines.append("*95% CI: cluster bootstrap over cases (repeat generations of "
                  "a case travel together, so repeats don't fake power). "
                  "**Models whose CIs overlap are statistically tied** — treat "

@@ -220,6 +220,52 @@ def score_mesh(metrics: dict[str, Any], *, expect_symmetry: bool = False) -> dic
     }
 
 
+def blend_measured_rig(scores: list[dict[str, Any]],
+                       rig_rows: list[dict[str, Any]],
+                       *, weight_measured: float = 0.5) -> int:
+    """Blend the MEASURED rig-smoke score into the proxy riggability score.
+
+    The proxy (closure + fragmentation + internal faces) systematically
+    misreads low-poly open meshes: Tripo P1 scored 44.7 on the proxy while
+    the Blender bone-heat probe bound it 33/38 at the weld tier with a 91.5
+    median smoke score (AUDIT errata #8). Where a measured result exists for
+    (provider, case_id) — median over repeats — riggability becomes a 50/50
+    blend: the smoke test grounds the score in an actual bind+bend, the proxy
+    keeps structural priors a 2-bone probe cannot see (symmetry, part
+    structure). Both components are kept in the row for transparency, and the
+    two composite profiles are recomputed. Returns the number of rows blended.
+    """
+    by_key: dict[tuple[str, str], list[float]] = {}
+    for r in rig_rows:
+        v = r.get("rig_smoke_score")
+        if isinstance(v, (int, float)) and not r.get("error"):
+            by_key.setdefault((r["provider"], r["case_id"]), []).append(float(v))
+    blended = 0
+    for s in scores:
+        key = (s.get("provider"), s.get("case_id"))
+        vals = by_key.get(key)
+        if not vals or s.get("riggability_score") is None:
+            continue
+        proxy = float(s["riggability_score"])
+        measured = float(median(vals))
+        rig = (1.0 - weight_measured) * proxy + weight_measured * measured
+        s["riggability_proxy_score"] = round(proxy, 2)
+        s["riggability_measured_score"] = round(measured, 2)
+        s["riggability_score"] = round(rig, 2)
+        wt = float(s["watertight_score"])
+        topo = float(s["topology_score"])
+        s["production_score"] = round(
+            WEIGHTS["watertight"] * wt + WEIGHTS["topology"] * topo
+            + WEIGHTS["riggability"] * rig, 2)
+        s["game_ready_score"] = round(
+            GAME_WEIGHTS["watertight"] * wt + GAME_WEIGHTS["topology"] * topo
+            + GAME_WEIGHTS["riggability"] * rig
+            + GAME_WEIGHTS["budget_fit"] * float(s["budget_fit_score"])
+            + GAME_WEIGHTS["uv"] * float(s["uv_score"]), 2)
+        blended += 1
+    return blended
+
+
 def _median(values: Iterable[float]) -> float | None:
     vals = [v for v in values if v is not None]
     return round(median(vals), 2) if vals else None
