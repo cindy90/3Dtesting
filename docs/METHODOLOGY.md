@@ -67,7 +67,10 @@
   参数,可证伪。
 - **压力样本包**(cases/stress.yaml):薄壁/镂空/细杆/锐边/连环 8 案例,
   独立文件保持主集与历史子集逐位对齐;`--cases` / workflow `cases_file`
-  输入点专项轮(需 fal 解锁生成 8 张新参考图,跑完可用 commit-refs 固化)。
+  输入点专项轮。**首轮实测(run #31,4 case)**:压力形状触发全场语义崩塌
+  (4.0→1.0-2.5)而几何分几乎不动——SDF 系"宁可错不可破"(形状背叛拿高
+  几何分),SparseFlex"试图做对"(语义最高但几何脏、glTF 门槛首现失败)。
+  证明了该样本包与"两层分离"的必要性;详见 COMPETITIVE_ANALYSIS 4.6。
 - **纹理生产质量 v1**(geometry `_texture` → 报告新表,只报不排名):
   PBR 通道齐全性(BC/MR/Normal)、basecolor 分辨率、albedo 亮度标准差
   (烘焙光影启发式,比较性解读)。焊前捕获(焊接会丢 TextureVisuals)。
