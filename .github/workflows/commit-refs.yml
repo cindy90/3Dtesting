@@ -1,0 +1,50 @@
+name: Commit reference images from a past run
+
+# The FLUX reference images are seed-fixed and bit-reproducible, but CI clones
+# fresh every run, so image-mode rounds kept re-generating them via fal — and
+# dying whenever the fal balance was empty. This one-shot workflow pulls
+# cases/refs/ out of a previous run's artifact and commits the PNGs to the
+# branch. After that, `refimg` hits the cache in every run and fal is only
+# needed for actually fal-hosted models.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run ID whose artifact contains cases/refs (29391959067 = run #17, all 40 refs)"
+        required: true
+        default: "29391959067"
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: blindtest-results
+          run-id: ${{ github.event.inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: _artifact
+
+      - name: Copy refs and commit
+        run: |
+          mkdir -p cases/refs
+          # the artifact preserves repo-relative paths; tolerate both layouts
+          cp -v _artifact/cases/refs/*.png cases/refs/ 2>/dev/null \
+            || cp -v _artifact/refs/*.png cases/refs/
+          echo "refs now in repo:"; ls cases/refs/ | head -50
+          git config user.name "github-actions"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cases/refs
+          git commit -m "Commit seed-fixed FLUX reference images from run ${{ github.event.inputs.run_id }}
+
+          refimg now hits this cache in every CI run instead of re-generating
+          via fal; identical pixels guaranteed (fixed seed), so all past and
+          future rounds stay strictly comparable." \
+            || { echo "nothing to commit (refs already present)"; exit 0; }
+          git push
