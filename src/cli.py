@@ -308,6 +308,33 @@ def cmd_slice(cfg: RunConfig) -> None:
     print(f"slicer: {len(results)} meshes -> {cfg.out_dir}/slicer_scores.json")
 
 
+def cmd_validate(cfg: RunConfig) -> None:
+    """Khronos glTF-Validator gate: numErrors == 0 = engine-importable floor."""
+    from .eval.gltf_check import available, probe
+    if not available():
+        print("validate: gltf-validator not installed "
+              "(npm install -g gltf-validator) — skipping engine gate")
+        return
+    gen_path = os.path.join(cfg.out_dir, "generation.json")
+    if not os.path.exists(gen_path):
+        raise SystemExit("run `generate` first (no generation.json)")
+    with open(gen_path) as fh:
+        gen = json.load(fh)
+    workdir = os.path.join(cfg.out_dir, "_gltf_tmp")
+    results = []
+    for r in gen:
+        if not (r.get("ok") and r.get("mesh_path") and os.path.exists(r["mesh_path"])):
+            continue
+        data = probe(r["mesh_path"], workdir)
+        data.update({"provider": r["provider"], "case_id": r["case_id"]})
+        results.append(data)
+        print(f"  [gltf] {r['provider']}/{r['case_id']}: "
+              f"errors={data.get('numErrors')} warnings={data.get('numWarnings')} "
+              f"{data.get('skipped') or data.get('error') or ''}")
+    _write_json(os.path.join(cfg.out_dir, "gltf_scores.json"), results)
+    print(f"gltf gate: {len(results)} meshes -> {cfg.out_dir}/gltf_scores.json")
+
+
 def cmd_blind(cfg: RunConfig) -> None:
     gen_path = os.path.join(cfg.out_dir, "generation.json")
     with open(gen_path) as fh:
@@ -326,7 +353,7 @@ def cmd_report(cfg: RunConfig) -> None:
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="blind3d")
     ap.add_argument("command",
-                    choices=["refimg", "generate", "analyze", "semantic", "rig", "slice", "blind", "report", "all"])
+                    choices=["refimg", "generate", "analyze", "semantic", "rig", "slice", "validate", "blind", "report", "all"])
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--only", nargs="*", help="limit generate to these providers")
     ap.add_argument("--max-cases", type=int, default=None,
@@ -381,6 +408,8 @@ def main(argv: list[str] | None = None) -> None:
         cmd_rig(cfg)
     if args.command in ("slice", "all"):
         cmd_slice(cfg)
+    if args.command in ("validate", "all"):
+        cmd_validate(cfg)
     if args.command in ("blind", "all"):
         cmd_blind(cfg)
     if args.command in ("report", "all"):

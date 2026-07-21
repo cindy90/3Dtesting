@@ -62,6 +62,9 @@ jobs:
           # Blender headless module for the rig smoke test (non-fatal; ~300MB, pip-cached)
           pip install bpy || echo "bpy unavailable; rig smoke test will be skipped"
 
+      - name: Install glTF-Validator (engine gate; non-fatal)
+        run: npm install -g gltf-validator || echo "gltf-validator unavailable; engine gate will be skipped"
+
       - name: Install PrusaSlicer (slicer ground truth; non-fatal)
         run: |
           sudo apt-get update -qq || true
@@ -111,6 +114,9 @@ jobs:
 
       - name: Slicer ground truth (PrusaSlicer --info + draft g-code)
         run: python -m src.cli slice
+
+      - name: Engine gate (Khronos glTF-Validator)
+        run: python -m src.cli validate
 
       - name: Blind set + report
         run: |

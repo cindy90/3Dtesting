@@ -270,9 +270,18 @@ def build_report(cfg: RunConfig) -> str:
                  "no rescue (failed submits are typically unbilled, so "
                  "completion is reported in the headline but kept out of the "
                  "cost divisor).\n")
-    lines.append("| Model | $/gen | Print gate | $/usable (print) | Game gate | $/usable (game) |")
-    lines.append("|---|---:|---:|---:|---:|---:|")
+    gltf_by: dict[str, list[dict]] = defaultdict(list)
+    gltf_path = os.path.join(cfg.out_dir, "gltf_scores.json")
+    if os.path.exists(gltf_path):
+        for s in _load(gltf_path):
+            if "numErrors" in s:
+                gltf_by[s["provider"]].append(s)
+    lines.append("| Model | $/gen | Engine gate (glTF errors=0) | Print gate | $/usable (print) | Game gate | $/usable (game) |")
+    lines.append("|---|---:|---:|---:|---:|---:|---:|")
     for p in ranking:
+        grows_v = gltf_by.get(p, [])
+        eg_s = (f"{sum(1 for x in grows_v if x.get('numErrors') == 0)}/{len(grows_v)}"
+                if grows_v else "—")
         srows = slc_by.get(p, [])
         pg = _rate(sum(1 for x in srows if x.get("slicer_manifold")), len(srows))
         grows = gate_by.get(p, [])
@@ -288,7 +297,7 @@ def build_report(cfg: RunConfig) -> str:
         pg_s = f"{sum(1 for x in srows if x.get('slicer_manifold'))}/{len(srows)}" if srows else "—"
         gg_s = f"{sum(1 for x in grows if x.get('uv_score',0)>0 and x.get('budget_fit_score',0)>=99)}/{len(grows)}" if grows else "—"
         pr_s = f"${pr:.2f}" if pr is not None else "—"
-        lines.append(f"| {p} | {pr_s} | {pg_s} | {_cost(pg)} | {gg_s} | {_cost(gg)} |")
+        lines.append(f"| {p} | {pr_s} | {eg_s} | {pg_s} | {_cost(pg)} | {gg_s} | {_cost(gg)} |")
     lines.append("\n*∞ = no generated asset passed the gate in this run; the "
                  "true cost is finite but unbounded by this sample.*\n")
 
