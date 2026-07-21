@@ -25,40 +25,40 @@ providers:
   # platform.tripo3d.ai docs). Confirmed version strings: v3.0-20250812,
   # P1-20260311. For H3.1 paste the exact string from the docs' model list.
   # Needs TRIPO_API_KEY credit (fal hosts only v2.5 + P1).
-  tripo:     {model_version: "v3.0-20250812", texture: true, pbr: true}
-  tripo_p1d: {model_version: "P1-20260311", texture: true, primary_profile: "game"}   # P1 官方直连 (图50 credits含贴图)
+  tripo:     {price_usd: 0.3, model_version: "v3.0-20250812", texture: true, pbr: true}
+  tripo_p1d: {price_usd: 0.5, model_version: "P1-20260311", texture: true, primary_profile: "game"}   # P1 官方直连 (图50 credits含贴图)
   # H3.1(HD 系列)= 官方 API 的 v3.1-20260211(官方 image-to-model 文档原文:
   # "model_version: v3.1-20260211 or v3.0-20250812")。
-  tripo_h31: {model_version: "v3.1-20260211", texture: true}
-  meshy:     {ai_model: "meshy-6", target_polycount: 30000}
+  tripo_h31: {price_usd: 0.3, model_version: "v3.1-20260211", texture: true}
+  meshy:     {price_usd: 0.5, ai_model: "meshy-6", target_polycount: 30000}
   # --- quad/low-poly dedicated round (P0 item 3): each vendor's low-poly
   # mode vs Tripo P1 (whose default output IS low-poly; reference data #17).
   # Hunyuan's LowPoly product is Tencent-platform-only (fal floor is 40K
   # faces) — documented coverage gap, not tested.
-  tripo_h31q: {model_version: "v3.1-20260211", texture: true, params: {quad: true}}
+  tripo_h31q: {price_usd: 0.375, model_version: "v3.1-20260211", texture: true, params: {quad: true}}
   # smart-topology requires the dedicated topology model (API 400 says
   # meshy-t1 or meshy-t2; t2 is current)
   meshy_lp:   {ai_model: "meshy-t2", params: {model_type: "smart-topology", target_polycount: 4000}}
-  rodin_fal_q: {model_id: "fal-ai/hyper3d/rodin/v2.5", params: {mesh_mode: "Quad", quality: "medium", material: "PBR"}}
-  rodin:     {tier: "Regular", mesh_mode: "Quad", quality: "high"}   # 影眸/Deemos
+  rodin_fal_q: {price_usd: 0.45, model_id: "fal-ai/hyper3d/rodin/v2.5", params: {mesh_mode: "Quad", quality: "medium", material: "PBR"}}
+  rodin:     {price_usd: 0.75, tier: "Regular", mesh_mode: "Quad", quality: "high"}   # 影眸/Deemos
   # Seed3D 2.0 (字节/火山方舟) — 模型ID由用户从方舟控制台确认;
   # 1.0 回退: doubao-seed3d-1-0-250928
-  seed3d:    {model_id: "doubao-seed3d-2-0-260328", options: "--fileformat glb", timeout_s: 1800}  # 生成常超15分钟
+  seed3d:    {price_usd: 0.33, model_id: "doubao-seed3d-2-0-260328", options: "--fileformat glb", timeout_s: 1800}  # 生成常超15分钟
   # --- hosted-on-fal commercial (shares FAL_KEY) ---
-  rodin_fal: {model_id: "fal-ai/hyper3d/rodin/v2.5", quality: "medium", material: "PBR"}  # ~$0.4/gen
+  rodin_fal: {price_usd: 0.4, model_id: "fal-ai/hyper3d/rodin/v2.5", quality: "medium", material: "PBR"}  # ~$0.4/gen
   # tripo_fal disabled: fal's tripo v2.5 endpoint downloads image_url server-side
   # and rejects data URIs (422 file_download_error). Tripo runs first-party now.
   # tripo_fal: {model_id: "tripo3d/tripo/v2.5/image-to-3d"}
-  tripo_p1:  {model_id: "tripo3d/p1/image-to-3d", primary_profile: "game"}           # P1.0 Smart Mesh (GDC 2026)
+  tripo_p1:  {price_usd: 0.8, model_id: "tripo3d/p1/image-to-3d", primary_profile: "game"}           # P1.0 Smart Mesh (GDC 2026)
   # --- open-source cohort (fal.ai, image-to-3D) ---
-  hunyuan3d:     {model_id: "fal-ai/hunyuan3d/v2"}
-  hunyuan3d_v21: {model_id: "fal-ai/hunyuan3d-v21"}
-  hunyuan3d_v31: {model_id: "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d"}  # 腾讯最新旗舰 $0.375/gen
-  trellis:       {model_id: "fal-ai/trellis"}
+  hunyuan3d:     {price_usd: 0.075, model_id: "fal-ai/hunyuan3d/v2"}
+  hunyuan3d_v21: {price_usd: 0.1, model_id: "fal-ai/hunyuan3d-v21"}
+  hunyuan3d_v31: {price_usd: 0.375, model_id: "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d"}  # 腾讯最新旗舰 $0.375/gen
+  trellis:       {price_usd: 0.1, model_id: "fal-ai/trellis"}
   # trellis2: decimation_target removed — forcing 30k decimation on ONE model
   # was a config-parity flaw that may explain its low run-12 score; retest clean.
-  trellis2:      {model_id: "fal-ai/trellis-2"}
-  triposr:       {model_id: "fal-ai/triposr", params: {mc_resolution: 256}}
+  trellis2:      {price_usd: 0.12, model_id: "fal-ai/trellis-2"}
+  triposr:       {price_usd: 0.07, model_id: "fal-ai/triposr", params: {mc_resolution: 256}}
   # instantmesh disabled: fal returns 404 "Application instant-mesh not found" —
   # the endpoint no longer exists on fal (third-party references were stale).
   # instantmesh: {model_id: "fal-ai/instant-mesh"}

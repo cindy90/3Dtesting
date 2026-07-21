@@ -242,6 +242,56 @@ def build_report(cfg: RunConfig) -> str:
                     f"{'—' if sh is None else f'{sh:.0f}'} |")
             lines.append("")
 
+    # --- scenario gates + cost per usable asset ---
+    # Gates are procurement pass/fail views, NOT score inputs: print gate =
+    # strict slicer manifold; game gate = ships UVs AND lands in the real-time
+    # budget band. Cost-per-usable divides the actual-channel price by the
+    # end-to-end usable rate (completion x gate) — the single number that
+    # matters for buying decisions ("cheap but rarely usable" gets exposed).
+    slc_by: dict[str, list[dict]] = defaultdict(list)
+    if os.path.exists(slc_path):
+        for s in _load(slc_path):
+            if not s.get("error"):
+                slc_by[s["provider"]].append(s)
+    gate_by: dict[str, list[dict]] = defaultdict(list)
+    for s in scores:
+        gate_by[s["provider"]].append(s)
+    prices = {p: (cfg.providers.get(p) or {}).get("price_usd") for p in providers}
+
+    def _rate(num: int, den: int) -> float | None:
+        return (num / den) if den else None
+
+    lines.append("## Scenario gates & cost per usable asset\n")
+    lines.append("Gates are pass/fail procurement views and do not enter any "
+                 "score. Print gate = strict slicer manifold; game gate = "
+                 "ships UVs and lands in the 1.5k-150k budget band. "
+                 "**$/usable = actual-channel price ÷ gate rate among "
+                 "generated meshes** — what a buyer pays per asset that needs "
+                 "no rescue (failed submits are typically unbilled, so "
+                 "completion is reported in the headline but kept out of the "
+                 "cost divisor).\n")
+    lines.append("| Model | $/gen | Print gate | $/usable (print) | Game gate | $/usable (game) |")
+    lines.append("|---|---:|---:|---:|---:|---:|")
+    for p in ranking:
+        srows = slc_by.get(p, [])
+        pg = _rate(sum(1 for x in srows if x.get("slicer_manifold")), len(srows))
+        grows = gate_by.get(p, [])
+        gg = _rate(sum(1 for x in grows
+                       if x.get("uv_score", 0) > 0 and x.get("budget_fit_score", 0) >= 99),
+                   len(grows))
+        pr = prices.get(p)
+
+        def _cost(gate: float | None) -> str:
+            if pr is None or gate is None:
+                return "—"
+            return f"${pr / gate:.2f}" if gate > 0 else "∞"
+        pg_s = f"{sum(1 for x in srows if x.get('slicer_manifold'))}/{len(srows)}" if srows else "—"
+        gg_s = f"{sum(1 for x in grows if x.get('uv_score',0)>0 and x.get('budget_fit_score',0)>=99)}/{len(grows)}" if grows else "—"
+        pr_s = f"${pr:.2f}" if pr is not None else "—"
+        lines.append(f"| {p} | {pr_s} | {pg_s} | {_cost(pg)} | {gg_s} | {_cost(gg)} |")
+    lines.append("\n*∞ = no generated asset passed the gate in this run; the "
+                 "true cost is finite but unbounded by this sample.*\n")
+
     # --- watertight pass-rate, THREE tiers (raw / welded / after auto-repair).
     # Vendors' self-reported "watertight rates" are incomparable because they
     # never state the processing tier; the same file can show 300k open edges
