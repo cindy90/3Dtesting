@@ -1,0 +1,24 @@
+# STRESS case set — geometric failure modes that automatic metrics are
+# blind to unless deliberately provoked (external-framework review, P1 item).
+# Kept in a SEPARATE file so the main 40-case set (and every historical run's
+# stratified subset) stays byte-identical; dispatch a stress round with
+#   python -m src.cli ... --cases cases/stress.yaml
+# Each case targets one stressor; expect_watertight stays true — the question
+# is whether thin/pierced/sharp forms survive each vendor's iso-surface or
+# native-mesh pipeline.
+
+version: 1
+cases:
+  # thin walls (FDM failure class; SDF pipelines erode below voxel size)
+  - {id: s01, category: stress, expect_symmetry: true,  prompt: "a thin-walled ceramic vase with 2mm walls, tall and slender, empty inside, visible interior cavity"}
+  - {id: s02, category: stress, expect_symmetry: false, prompt: "a paper-thin curved potato chip snack, single wavy sheet"}
+  # lattice / pierced (genus stress; marching cubes bridges or seals holes)
+  - {id: s03, category: stress, expect_symmetry: true,  prompt: "a cube-shaped steel lattice made of thin criss-crossing struts, many through-holes, jungle-gym structure"}
+  - {id: s04, category: stress, expect_symmetry: true,  prompt: "a round wheel of swiss cheese with many holes piercing all the way through"}
+  # thin rods (erosion / disconnection stress)
+  - {id: s05, category: stress, expect_symmetry: true,  prompt: "a minimalist wireframe chair made of thin bent metal rods, no solid surfaces except a small seat"}
+  - {id: s06, category: stress, expect_symmetry: false, prompt: "a wine glass with a very thin tall stem and a wide shallow bowl"}
+  # sharp edges (iso-surface rounding stress)
+  - {id: s07, category: stress, expect_symmetry: true,  prompt: "a machined steel gear with crisp sharp teeth and a hexagonal center hole, hard edges everywhere"}
+  # linked topology (separate interlocking shells)
+  - {id: s08, category: stress, expect_symmetry: false, prompt: "three interlocking metal chain links, each link a closed torus passing through the next"}

@@ -339,6 +339,11 @@ def main(argv: list[str] | None = None) -> None:
                     help="generate each case N times per provider (repeat "
                          "samples share the case's prompt/reference image; "
                          "the report's CI resamples by case, not by repeat)")
+    ap.add_argument("--cases", default=None,
+                    help="override the case set file (e.g. cases/stress.yaml "
+                         "for the geometric-stressor round); the main 40-case "
+                         "set stays untouched so historical subsets keep "
+                         "aligning")
     ap.add_argument("--force", action="store_true",
                     help="refimg: regenerate reference images even if cached")
     args = ap.parse_args(argv)
@@ -346,6 +351,8 @@ def main(argv: list[str] | None = None) -> None:
     cfg = load_config(args.config)
     if args.mode:
         cfg.mode = args.mode
+    if args.cases:
+        cfg.cases_file = args.cases
     cases = load_cases(cfg.cases_file)
     if args.max_cases is not None:
         cases = _sample_cases(cases, args.max_cases)

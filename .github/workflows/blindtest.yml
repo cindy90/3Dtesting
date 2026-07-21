@@ -23,6 +23,10 @@ on:
         description: "Generations per case per provider (2-3 for publication runs; multiplies cost!)"
         required: true
         default: "1"
+      cases_file:
+        description: "Case set override (empty = main 40-case set; cases/stress.yaml = geometric-stressor round)"
+        required: false
+        default: ""
 
 # Serialize only runs that target the SAME providers (that's the real
 # double-spend risk: dispatching an identical batch twice). Distinct provider
@@ -74,6 +78,7 @@ jobs:
         run: |
           # on failure, run the zero-cost fal diagnostics so the logs explain why
           python -m src.cli refimg --max-cases ${{ github.event.inputs.max_cases }} \
+            ${{ github.event.inputs.cases_file && format('--cases {0}', github.event.inputs.cases_file) || '' }} \
             || { python -m src.fal_diag; exit 1; }
 
       - name: Generate
@@ -88,10 +93,11 @@ jobs:
             --only ${{ github.event.inputs.providers }} \
             --mode ${{ github.event.inputs.mode }} \
             --max-cases ${{ github.event.inputs.max_cases }} \
-            --repeats ${{ github.event.inputs.repeats || '1' }}
+            --repeats ${{ github.event.inputs.repeats || '1' }} \
+            ${{ github.event.inputs.cases_file && format('--cases {0}', github.event.inputs.cases_file) || '' }}
 
       - name: Analyze
-        run: python -m src.cli analyze
+        run: python -m src.cli analyze ${{ github.event.inputs.cases_file && format('--cases {0}', github.event.inputs.cases_file) || '' }}
 
       - name: Semantic gallery (+ VLM judge when ARK_VLM_MODEL is set)
         env:
@@ -108,8 +114,8 @@ jobs:
 
       - name: Blind set + report
         run: |
-          python -m src.cli blind
-          python -m src.cli report
+          python -m src.cli blind ${{ github.event.inputs.cases_file && format('--cases {0}', github.event.inputs.cases_file) || '' }}
+          python -m src.cli report ${{ github.event.inputs.cases_file && format('--cases {0}', github.event.inputs.cases_file) || '' }}
 
       - name: Show report in the run log
         if: always()

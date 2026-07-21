@@ -292,6 +292,38 @@ def build_report(cfg: RunConfig) -> str:
     lines.append("\n*∞ = no generated asset passed the gate in this run; the "
                  "true cost is finite but unbounded by this sample.*\n")
 
+    # --- texture production quality (reported, never ranked) ---
+    metrics_rows = _load(os.path.join(cfg.out_dir, "metrics.json"))
+    tex_by: dict[str, list[dict]] = defaultdict(list)
+    for m in metrics_rows:
+        t = (m.get("extra") or {}).get("texture") or {}
+        if m.get("ok") and t:
+            tex_by[m["provider"]].append(t)
+    if any(any(t.get("basecolor_res") for t in v) for v in tex_by.values()):
+        lines.append("## Texture production quality (reported, not ranked)\n")
+        lines.append("PBR channels = base color / metallic-roughness / normal "
+                     "map shipped. Albedo lum-std is a baked-lighting "
+                     "heuristic: a true albedo is flat-ish, baked "
+                     "shadows/speculars push the number up (interpret "
+                     "comparatively, not absolutely).\n")
+        lines.append("| Model | BC | MR | Normal | Median basecolor res | Median albedo lum-std |")
+        lines.append("|---|---:|---:|---:|---:|---:|")
+        for p in ranking:
+            rows = tex_by.get(p, [])
+            if not rows:
+                lines.append(f"| {p} | — | — | — | — | — |")
+                continue
+            n = len(rows)
+            bc = sum(1 for t in rows if t.get("basecolor_res"))
+            mr = sum(1 for t in rows if t.get("has_metallic_roughness"))
+            nm = sum(1 for t in rows if t.get("has_normal_map"))
+            res = [t["basecolor_res"] for t in rows if t.get("basecolor_res")]
+            lum = [t["albedo_lum_std"] for t in rows if t.get("albedo_lum_std") is not None]
+            res_s = f"{int(median(res))}px" if res else "—"
+            lum_s = f"{median(lum):.0f}" if lum else "—"
+            lines.append(f"| {p} | {bc}/{n} | {mr}/{n} | {nm}/{n} | {res_s} | {lum_s} |")
+        lines.append("")
+
     # --- watertight pass-rate, THREE tiers (raw / welded / after auto-repair).
     # Vendors' self-reported "watertight rates" are incomparable because they
     # never state the processing tier; the same file can show 300k open edges

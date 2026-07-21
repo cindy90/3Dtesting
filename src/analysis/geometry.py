@@ -180,6 +180,33 @@ def _load_scene(path: str) -> trimesh.Trimesh:
         uv = getattr(getattr(g, "visual", None), "uv", None)
         return uv is not None and len(uv) > 0
     raw_has_uv = any(_g_has_uv(g) for g in geoms)
+
+    # texture production quality v1 (reported, not scored): PBR channel
+    # presence, base-color resolution, and a baked-lighting heuristic (the
+    # luminance std of the albedo — a true albedo is flat-ish; baked
+    # shadows/speculars push it up). Must run on RAW visuals pre-weld.
+    tex: dict = {"basecolor_res": None, "has_metallic_roughness": False,
+                 "has_normal_map": False, "albedo_lum_std": None}
+    try:
+        import numpy as _np
+        for g in geoms:
+            mat = getattr(getattr(g, "visual", None), "material", None)
+            if mat is None:
+                continue
+            bc = getattr(mat, "baseColorTexture", None)
+            if bc is not None and hasattr(bc, "size"):
+                res = max(bc.size)
+                tex["basecolor_res"] = max(tex["basecolor_res"] or 0, res)
+                if tex["albedo_lum_std"] is None:
+                    small = bc.convert("L").resize((128, 128))
+                    tex["albedo_lum_std"] = round(
+                        float(_np.asarray(small, dtype=_np.float32).std()), 1)
+            if getattr(mat, "metallicRoughnessTexture", None) is not None:
+                tex["has_metallic_roughness"] = True
+            if getattr(mat, "normalTexture", None) is not None:
+                tex["has_normal_map"] = True
+    except Exception:  # noqa: BLE001 - texture stats must never kill analysis
+        pass
     if not isinstance(mesh, trimesh.Trimesh) or mesh.faces.shape[0] == 0:
         raise ValueError("no triangle faces after load")
 
@@ -197,6 +224,7 @@ def _load_scene(path: str) -> trimesh.Trimesh:
     mesh.metadata["_n_sub"] = n_sub
     mesh.metadata["_raw_boundary_edges"] = raw_boundary
     mesh.metadata["_raw_has_uv"] = raw_has_uv
+    mesh.metadata["_texture"] = tex
     return mesh
 
 
@@ -293,6 +321,7 @@ def analyze_mesh(path: str, *, expect_symmetry: bool = False) -> MeshMetrics:
     m.ok = True
     m.n_meshes_in_scene = int(mesh.metadata.get("_n_sub", 1))
     m.extra["raw_boundary_edges"] = int(mesh.metadata.get("_raw_boundary_edges", 0))
+    m.extra["texture"] = mesh.metadata.get("_texture") or {}
     m.n_vertices = int(len(mesh.vertices))
     m.n_faces = int(len(mesh.faces))
 
